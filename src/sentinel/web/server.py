@@ -30,6 +30,10 @@ class RoleIconEntry(BaseModel):
     priority: int | None = 0
 
 
+class NameFormatPayload(BaseModel):
+    name_format: str
+
+
 def get_app(bot: SentinelBot) -> FastAPI:  # noqa: D401
     """Return a FastAPI app instance bound to the provided bot."""
 
@@ -219,6 +223,7 @@ def get_app(bot: SentinelBot) -> FastAPI:  # noqa: D401
                 "role_icons": role_icons,
                 "roles": roles,
                 "role_names": {str(r['id']): r['name'] for r in roles},
+                "cfg_format": cfg.get("name_format", "{username} [{icons}]"),
             },
         )
 
@@ -244,5 +249,17 @@ def get_app(bot: SentinelBot) -> FastAPI:  # noqa: D401
         role_icons.pop(str(role_id), None)
         save_guild_config(guild_id, cfg)
         return {"status": "deleted"}
+
+    @app.get("/guilds/{guild_id}/name-format", tags=["config"])
+    async def get_name_format(guild_id: int):
+        cfg = load_guild_config(guild_id)
+        return {"name_format": cfg.get("name_format", "{username} [{icons}]")}
+
+    @app.post("/guilds/{guild_id}/name-format", tags=["config"])
+    async def set_name_format(guild_id: int, payload: NameFormatPayload):
+        cfg = load_guild_config(guild_id)
+        cfg["name_format"] = payload.name_format
+        save_guild_config(guild_id, cfg)
+        return {"status": "ok"}
 
     return app 

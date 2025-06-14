@@ -2,6 +2,30 @@
 {% block content %}
 <h2 class="title is-3">Settings für {{ guild.name }}</h2>
 <h3 class="title is-4">Rollen-Icons</h3>
+
+<form id="addIconForm">
+    <div class="field has-addons">
+        <div class="control">
+            <select id="role_id" required data-choices style="min-width:220px">
+                <option value="" disabled selected>Rolle wählen</option>
+                {% for role in roles %}
+                <option value="{{ role.id }}">{{ role.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="control">
+            <input class="input" type="text" placeholder="Emoji" id="emoji" required>
+        </div>
+        <div class="control">
+            <input class="input" type="number" placeholder="Prio" id="priority" value="0" style="width:90px">
+        </div>
+        <div class="control">
+            <button class="button is-primary" type="submit">Hinzufügen</button>
+        </div>
+    </div>
+</form>
+<hr />
+
 {% if role_icons %}
 <table class="table is-fullwidth">
     <thead>
@@ -27,26 +51,13 @@
 <p>Keine Icons konfiguriert.</p>
 {% endif %}
 
-<hr />
-<form id="addIconForm">
-    <div class="field has-addons">
-        <div class="control">
-            <select id="role_id" required data-choices style="min-width:220px">
-                <option value="" disabled selected>Rolle wählen</option>
-                {% for role in roles %}
-                <option value="{{ role.id }}">{{ role.name }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="control">
-            <input class="input" type="text" placeholder="Emoji" id="emoji" required>
-        </div>
-        <div class="control">
-            <input class="input" type="number" placeholder="Prio" id="priority" value="0" style="width:90px">
-        </div>
-        <div class="control">
-            <button class="button is-primary" type="submit">Hinzufügen</button>
-        </div>
+<h3 class="title is-4">Nickname-Format</h3>
+<form id="formatForm" class="field has-addons" style="max-width:400px">
+    <div class="control is-expanded">
+        <input class="input" type="text" id="name_format" value="{{ cfg_format }}">
+    </div>
+    <div class="control">
+        <button class="button is-link" type="submit">Speichern</button>
     </div>
 </form>
 
@@ -68,6 +79,17 @@
             body: JSON.stringify(payload)
         });
         location.reload();
+    });
+
+    document.getElementById('formatForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const fmt = document.getElementById('name_format').value;
+        await fetch(`/guilds/{{ guild.id }}/name-format`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name_format: fmt })
+        });
+        alert('Format gespeichert');
     });
 </script>
 {% endblock %}
