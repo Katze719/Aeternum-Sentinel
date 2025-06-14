@@ -12,6 +12,9 @@ RUN apt-get update && apt-get install -y \
     libxext6 \
     libxrender-dev \
     libsm6 \
+    libffi-dev \
+    libnacl-dev \
+    python3-dev \
     ffmpeg \
     git-lfs \
     locales \
