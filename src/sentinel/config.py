@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     discord_token: str  # looks for `DISCORD_TOKEN`
     command_prefix: str = "!"  # `COMMAND_PREFIX`
 
+    # OAuth for web login
+    discord_client_id: str
+    discord_client_secret: str
+    oauth_redirect_uri: str = "http://localhost:8000/callback"
+
     # Web server
     host: str = "0.0.0.0"  # `HOST`
     port: int = 8000  # `PORT`
