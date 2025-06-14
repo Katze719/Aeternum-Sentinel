@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2 class="title is-3">Settings für {{ guild.name }}</h2>
+<h3 class="title is-4">Rollen-Icons</h3>
+{% if role_icons %}
+<table class="table is-fullwidth">
+    <thead>
+        <tr>
+            <th>Emoji</th>
+            <th>Role</th>
+            <th>Prio</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for role_id, info in role_icons.items() %}
+        <tr>
+            <td>{{ info.emoji }}</td>
+            <td>{{ role_names.get(role_id, role_id) }}</td>
+            <td>{{ info.priority }}</td>
+            <td><button class="button is-danger is-small" onclick="deleteIcon('{{ role_id }}')">✖</button></td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>Keine Icons konfiguriert.</p>
+{% endif %}
+
+<hr />
+<form id="addIconForm">
+    <div class="field has-addons">
+        <div class="control">
+            <select id="role_id" required data-choices style="min-width:220px">
+                <option value="" disabled selected>Rolle wählen</option>
+                {% for role in roles %}
+                <option value="{{ role.id }}">{{ role.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="control">
+            <input class="input" type="text" placeholder="Emoji" id="emoji" required>
+        </div>
+        <div class="control">
+            <input class="input" type="number" placeholder="Prio" id="priority" value="0" style="width:90px">
+        </div>
+        <div class="control">
+            <button class="button is-primary" type="submit">Hinzufügen</button>
+        </div>
+    </div>
+</form>
+
+<script>
+    async function deleteIcon(roleId) {
+        await fetch(`/guilds/{{ guild.id }}/role-icons/${roleId}`, { method: 'DELETE' });
+        location.reload();
+    }
+    document.getElementById('addIconForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const payload = {
+            role_id: document.getElementById('role_id').value,
+            emoji: document.getElementById('emoji').value,
+            priority: parseInt(document.getElementById('priority').value) || 0
+        };
+        await fetch(`/guilds/{{ guild.id }}/role-icons`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        location.reload();
+    });
+</script>
+{% endblock %}
