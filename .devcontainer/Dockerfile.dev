@@ -1,0 +1,28 @@
+FROM python:3.10
+
+# Installiere benötigte Pakete für OpenCV & Tesseract OCR
+RUN apt-get update && apt-get install -y \
+    tesseract-ocr \
+    tesseract-ocr-deu \
+    libtesseract-dev \
+    libasound2-dev \
+    libavcodec-extra \
+    libavformat-dev \
+    libswscale-dev \
+    libxext6 \
+    libxrender-dev \
+    libsm6 \
+    ffmpeg \
+    git-lfs \
+    locales \
+    fonts-dejavu \
+    fonts-noto-color-emoji \
+    && rm -rf /var/lib/apt/lists/*
+
+# Note: There's an issue with matplotlib loading the Noto Color Emoji font
+# In the code we only use DejaVu Sans for compatibility
+
+RUN pip install poetry
+
+RUN echo "de_DE.UTF-8 UTF-8" >> /etc/locale.gen; \
+    locale-gen
