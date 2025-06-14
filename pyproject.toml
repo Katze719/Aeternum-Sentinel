@@ -1,7 +1,7 @@
 [project]
 name = "aeternum-sentinel"
 version = "0.1.0"
-description = ""
+description = "A feature-rich Discord bot with web-based configuration interface."
 authors = [
     {name = "Katze719",email = "pauldorn1234@gmail.com"}
 ]
@@ -9,10 +9,31 @@ license = {text = "MIT"}
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "discord-py (>=2.5.2,<3.0.0)"
+    "discord.py>=2.5.2,<3.0.0",
+    "fastapi>=0.110.0,<1.0.0",
+    "uvicorn[standard]>=0.29.0,<1.0.0",
+    "pydantic>=2.5,<3.0",
+    "python-dotenv>=1.0",
+    "pydantic-settings>=2.2,<3.0",
+    "pynacl (>=1.5.0,<2.0.0)",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "black>=24.3.0",
+    "ruff>=0.1.0",
+    "pytest>=8.0.0"
+]
+
+[project.scripts]
+sentinel = "sentinel.cli:main"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+# Source-layout mapping so Poetry can find the package
+packages = [
+    { include = "sentinel", from = "src" }
+]
