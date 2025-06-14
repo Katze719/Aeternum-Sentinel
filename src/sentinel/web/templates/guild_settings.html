@@ -52,6 +52,11 @@
 {% endif %}
 
 <h3 class="title is-4">Nickname-Format</h3>
+<div class="field">
+    <input id="icon_enabled" type="checkbox" class="switch is-rounded is-info" {% if icon_enabled %}checked{% endif %}>
+    <label for="icon_enabled">Rollen-Icons aktivieren</label>
+</div>
+
 <form id="formatForm" class="field has-addons" style="max-width:400px">
     <div class="control is-expanded">
         <input class="input" type="text" id="name_format" value="{{ cfg_format }}">
@@ -90,6 +95,15 @@
             body: JSON.stringify({ name_format: fmt })
         });
         alert('Format gespeichert');
+    });
+
+    document.getElementById('icon_enabled').addEventListener('change', async (e) => {
+        const enabled = e.target.checked;
+        await fetch(`/guilds/{{ guild.id }}/role-icons-enabled`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled })
+        });
     });
 </script>
 {% endblock %}

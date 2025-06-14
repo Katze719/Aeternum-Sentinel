@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from typing import List
+import re
 
 import discord
 from discord.ext import commands
@@ -32,8 +33,19 @@ class RoleIcons(commands.Cog):
     def _format_name(self, username: str, emojis: List[str], fmt: str) -> str:
         return fmt.replace("{username}", username).replace("{icons}", "".join(emojis))
 
+    @staticmethod
+    def _build_regex(fmt: str) -> re.Pattern:
+        pattern = (
+            re.escape(fmt)
+            .replace(r"\{username\}", r"(?P<name>.+?)")
+            .replace(r"\{icons\}", r".*")
+        )
+        return re.compile(f"^{pattern}$")
+
     async def _apply_nickname(self, member: discord.Member):
         cfg = load_guild_config(member.guild.id)
+        if not cfg.get("role_icon_enabled", True):
+            return
         fmt = cfg.get(FORMAT_KEY, DEFAULT_FORMAT)
         icons_cfg = cfg.get(ROLE_ICONS_KEY, {})
 
@@ -47,9 +59,19 @@ class RoleIcons(commands.Cog):
             icons_sorted = self._sorted_emojis(list(icons_cfg.values()))
             emojis = [e for e in icons_sorted if e in emojis]
 
-        new_nick = self._format_name(member.name, emojis, fmt)
-        try:
-            await member.edit(nick=new_nick, reason="Updating role icons")
+        # Determine base username from current display_name to avoid double application
+        regex = self._build_regex(fmt)
+        match = regex.match(member.display_name)
+        base_username = match.group("name") if match else member.display_name
+
+        new_nick = self._format_name(base_username, emojis, fmt)
+
+        # Only update when necessary to avoid endless re-formatting
+        if member.display_name == new_nick:
+            return
+
+        try:    
+            await member.edit(nick=new_nick, reason='Updating role icons')
         except discord.Forbidden:
             _log.warning("Missing permissions to edit nickname for %s", member)
         except discord.HTTPException as exc:
@@ -72,6 +94,15 @@ class RoleIcons(commands.Cog):
         if before.roles == after.roles:
             return
         await self._apply_nickname(after)
+
+
+def build_regex(fmt: str) -> re.Pattern:
+    pattern = (
+        re.escape(fmt)
+        .replace(r'\{username\}', r'(?P<name>.+?)')
+        .replace(r'\{icons\}', r'.*')          # Icons dürfen alles sein
+    )
+    return re.compile(f'^{pattern}$')
 
 
 async def setup(bot: commands.Bot):
