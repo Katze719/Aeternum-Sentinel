@@ -2,9 +2,13 @@
 
 > **Your all-in-one Discord companion for New World — with automation, a sleek web dashboard and first-class Docker support.**
 
-![Python](https://img.shields.io/badge/python-3.11-blue?logo=python)
+![Python](https://img.shields.io/badge/python-3.12-blue?logo=python)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Docker](https://img.shields.io/badge/docker-ready-blue?logo=docker)
+
+**🪄 Quickest Start – Invite the Bot**
+
+[➕ **Add Aeternum-Sentinel to your server**](https://discord.com/oauth2/authorize?client_id=1383522700244287630)
 
 ---
 
