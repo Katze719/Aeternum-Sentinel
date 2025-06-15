@@ -78,12 +78,14 @@ body {
         background: var(--bg-elevated);
     }
 
-    &.is-striped tbody tr:nth-child(even) {
+    &.is-striped tbody tr:not(.is-selected):nth-child(even) {
         background: var(--bg-card);
     }
 
+    &.is-striped tbody tr:not(.is-selected):hover,
+    &.is-striped.is-hoverable tbody tr:not(.is-selected):hover,
     &.is-hoverable tbody tr:not(.is-selected):hover {
-        background: var(--bg-card);
+        background: var(--bg-card) !important;
     }
 }
 
