@@ -1,0 +1,185 @@
+/* SCSS version of sentinel styles – identical to current CSS but allows future use of variables, mixins, etc. */
+@charset "utf-8";
+
+/* ---------------- Sentinel Dark Theme (SCSS) ---------------- */
+
+// Color palette variables
+$bg-dark: #2f3136;
+$bg-card: #36393f;
+$bg-elevated: #202225;
+$text-normal: #dcddde;
+$accent: #ff4f4f;
+
+// Expose them as CSS custom properties for runtime usage
+:root {
+    --bg-dark: #{$bg-dark};
+    --bg-card: #{$bg-card};
+    --bg-elevated: #{$bg-elevated};
+    --text-normal: #{$text-normal};
+    --accent: #{$accent};
+}
+
+html,
+body {
+    background: var(--bg-dark);
+    color: var(--text-normal);
+    height: 100%;
+}
+
+.card {
+    background: var(--bg-card);
+    color: var(--text-normal);
+    border: none;
+    border-radius: 8px;
+}
+
+.navbar,
+.footer {
+    background: var(--bg-elevated);
+}
+
+.button {
+
+    &.is-primary,
+    &.is-link,
+    &.is-info {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+
+        &:hover {
+            filter: brightness(1.1);
+        }
+    }
+}
+
+.switch.is-info input:checked+.check {
+    background: var(--accent);
+}
+
+.input,
+.select select {
+    background: var(--bg-elevated);
+    border-color: var(--bg-card);
+    color: var(--text-normal);
+}
+
+.table {
+    background: var(--bg-card);
+    color: var(--text-normal);
+
+    thead th {
+        background: var(--bg-card);
+        color: var(--text-normal);
+        border-bottom-color: var(--bg-elevated);
+    }
+
+    &.is-striped tbody tr:nth-child(odd) {
+        background: var(--bg-elevated);
+    }
+
+    &.is-hoverable tbody tr:not(.is-selected):hover {
+        background: var(--bg-card);
+    }
+}
+
+.title,
+.subtitle,
+label {
+    color: var(--text-normal) !important;
+}
+
+.full-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+}
+
+hr {
+    background: var(--bg-elevated);
+}
+
+/* ----- Cards & Headers ----- */
+.card-header {
+    background: var(--bg-elevated);
+    border: none;
+
+    .card-header-title {
+        color: var(--text-normal);
+    }
+}
+
+/* ----- Form & Select Overrides ----- */
+
+// Placeholder color
+.input::placeholder,
+textarea::placeholder {
+    color: #a0a0a0;
+    opacity: 1;
+}
+
+// Choices.js dark styling overrides
+.choices__inner,
+.choices__list--dropdown,
+.choices__list[role="listbox"] {
+    background: var(--bg-elevated) !important;
+    color: var(--text-normal) !important;
+    border-color: var(--bg-card) !important;
+}
+
+.choices__list--dropdown {
+    background: var(--bg-elevated) !important;
+    border-color: var(--bg-card) !important;
+
+    .choices__item,
+    .choices__item--selectable {
+        background: var(--bg-elevated) !important;
+        color: var(--text-normal) !important;
+
+        &.is-highlighted {
+            background: var(--bg-card) !important;
+        }
+    }
+
+    .choices__item--disabled {
+        color: #777 !important;
+    }
+
+    // Search field inside dropdown
+    .choices__input {
+        background: var(--bg-elevated) !important;
+        color: var(--text-normal) !important;
+        border-color: var(--bg-card) !important;
+
+        &::placeholder {
+            color: #a0a0a0 !important;
+        }
+    }
+}
+
+// Selected single-select control
+.choices[data-type*="select-one"] {
+    min-width: 340px !important;
+
+    .choices__inner {
+        background: var(--bg-elevated) !important;
+        border-color: var(--bg-card) !important;
+        color: var(--text-normal) !important;
+        min-height: calc(2.25em + .125em + 2px) !important;
+        padding: calc(0.375em - 1px) calc(0.625em - 1px) !important;
+        display: flex !important;
+        align-items: center !important;
+        border-radius: 4px !important;
+        box-sizing: border-box !important;
+    }
+
+    &::after {
+        border-color: var(--text-normal) transparent transparent !important;
+    }
+}
+
+.choices__list--single {
+    line-height: 1.5 !important;
+}

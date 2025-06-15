@@ -1,5 +1,5 @@
 # Basis-Image mit Python 3.10
-FROM python:3.10
+FROM python:3.12
 
 # Installiere benötigte Pakete für OpenCV & Tesseract OCR
 RUN apt-get update && apt-get install -y \

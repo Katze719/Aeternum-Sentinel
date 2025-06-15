@@ -60,6 +60,16 @@ def get_app(bot: SentinelBot) -> FastAPI:  # noqa: D401
     app.mount("/static", StaticFiles(directory=static_path), name="static")
     templates = Jinja2Templates(directory=str(templates_path))
 
+    # Compile SCSS to CSS once at startup (non-blocking)
+    try:
+        from sentinel.utils.assets import compile_scss  # local import to avoid cost if unused
+
+        static_dir = Path(__file__).parent / "static"
+        compile_scss(static_dir / "sentinel.scss", static_dir / "sentinel.css")
+    except Exception as _:
+        # If Sass compilation fails we continue with last generated CSS
+        pass
+
     @app.get("/", response_class=HTMLResponse, tags=["ui"])
     async def landing(request: Request):
         return templates.TemplateResponse("landing.html", {"request": request})
@@ -223,7 +233,21 @@ def get_app(bot: SentinelBot) -> FastAPI:  # noqa: D401
             user_guilds = guilds_resp.json()
 
         bot_guild_ids = {g.id for g in bot.guilds}
-        common_guilds = [g for g in user_guilds if int(g["id"]) in bot_guild_ids]
+
+        # Build list of guilds where bot is present + add icon URL for dashboard display
+        common_guilds = []
+        for g in user_guilds:
+            if int(g["id"]) not in bot_guild_ids:
+                continue
+
+            icon_hash = g.get("icon")
+            if icon_hash:
+                g["icon_url"] = f"https://cdn.discordapp.com/icons/{g['id']}/{icon_hash}.png?size=128"
+            else:
+                # Fallback placeholder (Discord default avatar)
+                g["icon_url"] = "https://cdn.discordapp.com/embed/avatars/0.png"
+
+            common_guilds.append(g)
 
         return templates.TemplateResponse(
             "dashboard.html",
