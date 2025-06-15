@@ -34,6 +34,13 @@ class SentinelBot(commands.Bot):
 
         await self._load_cogs()
 
+        # Ensure application (slash) commands are synced so they appear in Discord.
+        try:
+            await self.tree.sync()
+            _log.info("Synced %d application command(s).", len(self.tree.get_commands()))
+        except Exception:  # pragma: no cover
+            _log.exception("Failed to sync application commands")
+
         # Optionally, you can perform database connection setup here
 
     async def _load_cogs(self) -> None:
