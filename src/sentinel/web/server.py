@@ -193,19 +193,29 @@ def get_app(bot: SentinelBot) -> FastAPI:  # noqa: D401
         Returns the active session dictionary for further use inside the endpoint.
         """
         session = _get_session(request)
+        accepts_html = "text/html" in (request.headers.get("accept", ""))
         if not session:
+            if accepts_html:
+                # Redirect to landing with toast message
+                raise HTTPException(status_code=302, headers={"Location": "/?msg=login_required"})
             raise HTTPException(status_code=401, detail="Authentication required.")
 
         guild = bot.get_guild(guild_id)
         if guild is None:
+            if accepts_html:
+                raise HTTPException(status_code=302, headers={"Location": "/?msg=guild_not_found"})
             raise HTTPException(status_code=404, detail="Guild not found or bot not in guild.")
 
         member = guild.get_member(int(session["user"]["id"]))
         if member is None:
+            if accepts_html:
+                raise HTTPException(status_code=302, headers={"Location": "/?msg=user_not_in_guild"})
             raise HTTPException(status_code=403, detail="User not in guild.")
 
         perms = member.guild_permissions
         if not (perms.administrator or perms.manage_guild):
+            if accepts_html:
+                raise HTTPException(status_code=302, headers={"Location": "/?msg=insufficient_perms"})
             raise HTTPException(status_code=403, detail="Administrator permissions required.")
 
         return session
