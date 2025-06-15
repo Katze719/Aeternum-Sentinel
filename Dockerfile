@@ -23,16 +23,15 @@ RUN echo "de_DE.UTF-8 UTF-8" >> /etc/locale.gen; \
 # Setze das Arbeitsverzeichnis
 WORKDIR /app
 
-# Kopiere die `pyproject.toml` und `poetry.lock` (wenn vorhanden)
+# 1) Projekt-Metadaten + Source ins Image legen
 COPY pyproject.toml poetry.lock* README.md LICENSE /app/
+COPY src /app/src
 
-# Installiere Poetry
+# 2) Poetry installieren & dein Paket inklusive Skript setup-en
 RUN pip install poetry
-
-# Installiere Abhängigkeiten nur mit Poetry (ohne virtuelle Umgebung in `/app/.venv`)
 RUN poetry config virtualenvs.create false \
-    && poetry install --no-interaction --no-ansi
+    && poetry install --no-interaction --no-ansi   # ohne --no-root
 
-# Kopiere den gesamten Code ins Image
+# 3) Restliche Dateien (Tests, CI-Configs …) nachziehen – optional
 COPY . /app
 CMD ["poetry", "run", "sentinel"]
