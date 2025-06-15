@@ -91,7 +91,7 @@ class RoleIcons(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_update(self, before: discord.Member, after: discord.Member):
-        if before.roles == after.roles:
+        if before.roles == after.roles and before.display_name == after.display_name:
             return
         await self._apply_nickname(after)
 

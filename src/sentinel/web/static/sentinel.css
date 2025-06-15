@@ -1,0 +1,75 @@
+/* Sentinel custom Discord-like dark theme */
+:root {
+    --bg-dark: #2f3136;
+    --bg-card: #36393f;
+    --bg-elevated: #202225;
+    --text-normal: #dcddde;
+    --accent: #ff4f4f;
+}
+
+html,
+body {
+    background: var(--bg-dark);
+    color: var(--text-normal);
+    height: 100%;
+}
+
+.card {
+    background: var(--bg-card);
+    color: var(--text-normal);
+    border: none;
+    border-radius: 8px;
+}
+
+.navbar,
+.footer {
+    background: var(--bg-elevated);
+}
+
+.button.is-primary,
+.button.is-link,
+.button.is-info {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+
+.button.is-primary:hover,
+.button.is-link:hover,
+.button.is-info:hover {
+    filter: brightness(1.1);
+}
+
+.switch.is-info input:checked+.check {
+    background: var(--accent);
+}
+
+.input,
+.select select {
+    background: var(--bg-elevated);
+    border-color: var(--bg-card);
+    color: var(--text-normal);
+}
+
+.table {
+    background: var(--bg-card);
+    color: var(--text-normal);
+}
+
+.title,
+.subtitle,
+label {
+    color: var(--text-normal) !important;
+}
+
+.full-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+}
+
+hr {
+    background: var(--bg-elevated);
+}
