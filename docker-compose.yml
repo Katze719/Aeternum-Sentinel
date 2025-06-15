@@ -1,0 +1,18 @@
+services:
+  sentinel:
+    # Use the pre-built image from GitHub Container Registry.
+    image: ghcr.io/aeternum-guild/aeternum-sentinel:latest
+    # Alternatively build locally:
+    # build: .
+
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+    ports:
+      - "8000:8000" # Expose FastAPI web UI
+    # --- Optional tweaks ------------------------------------------------
+    # - Add your own labels for Traefik / Caddy / Nginx reverse proxy
+    # - Mount extra volumes for logs
+    # ------------------------------------------------------------------- 
