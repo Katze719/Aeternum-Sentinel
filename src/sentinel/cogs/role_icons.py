@@ -44,7 +44,7 @@ class RoleIcons(commands.Cog):
 
     async def _apply_nickname(self, member: discord.Member):
         cfg = load_guild_config(member.guild.id)
-        if not cfg.get("role_icon_enabled", True):
+        if not cfg.get("role_icon_enabled", False):
             return
         fmt = cfg.get(FORMAT_KEY, DEFAULT_FORMAT)
         icons_cfg = cfg.get(ROLE_ICONS_KEY, {})

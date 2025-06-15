@@ -13,6 +13,7 @@ from .config import get_settings
 from .web.server import get_app
 
 _log = logging.getLogger(__name__)
+_log.setLevel(logging.DEBUG)
 
 
 class SentinelBot(commands.Bot):
@@ -21,6 +22,8 @@ class SentinelBot(commands.Bot):
     def __init__(self, *args, **kwargs):
         settings = get_settings()
         intents = Intents.all()
+        intents.voice_states = True
+        intents.members = True
         super().__init__(command_prefix=settings.command_prefix, intents=intents, *args, **kwargs)
 
         # Placeholder for the uvicorn server instance.
