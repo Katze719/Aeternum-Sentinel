@@ -61,6 +61,11 @@ class SentinelBot(commands.Bot):
         """Start the FastAPI web server in a background task."""
 
         settings = get_settings()
+        # Log the public URL where the web UI should be reachable. We derive it from the
+        # configured OAuth redirect (everything before the last slash) so users can
+        # override it easily via the OAUTH_REDIRECT_URI env var.
+        ui_base_url = settings.oauth_redirect_uri.rsplit("/", 1)[0]
+        _log.info("Web interface available at %s", ui_base_url)
         config = uvicorn.Config(get_app(self), host=settings.host, port=settings.port, log_level="info")
         self._uvicorn = uvicorn.Server(config=config)
 
