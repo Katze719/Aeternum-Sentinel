@@ -78,6 +78,10 @@ body {
         background: var(--bg-elevated);
     }
 
+    &.is-striped tbody tr:nth-child(even) {
+        background: var(--bg-card);
+    }
+
     &.is-hoverable tbody tr:not(.is-selected):hover {
         background: var(--bg-card);
     }
