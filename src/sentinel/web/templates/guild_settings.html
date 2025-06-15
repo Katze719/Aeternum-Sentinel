@@ -1,0 +1,246 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2 class="title is-3">Settings für {{ guild.name }}</h2>
+<div class="card mb-6">
+    <header class="card-header">
+        <p class="card-header-title">Rollen-Icons</p>
+    </header>
+    <div class="card-content">
+
+        <form id="addIconForm">
+            <div class="field has-addons">
+                <div class="control">
+                    <select id="role_id" required data-choices style="min-width:500px">
+                        <option value="" disabled selected>Rolle wählen</option>
+                        {% for role in roles %}
+                        <option value="{{ role.id }}">{{ role.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="control">
+                    <input class="input" type="text" placeholder="Emoji" id="emoji" required>
+                </div>
+                <div class="control">
+                    <input class="input" type="number" placeholder="Prio" id="priority" value=""
+                        title="Höhere Zahl = höhere Anzeigenreihenfolge" style="width:120px">
+                </div>
+                <div class="control">
+                    <button class="button is-primary" type="submit">Hinzufügen</button>
+                </div>
+            </div>
+        </form>
+        <hr class="my-3" />
+
+        {% if role_icons %}
+        <table class="table is-fullwidth is-striped is-hoverable">
+            <thead>
+                <tr>
+                    <th>Emoji</th>
+                    <th>Role</th>
+                    <th>Prio</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for role_id, info in role_icons.items() %}
+                <tr>
+                    <td>{{ info.emoji }}</td>
+                    <td>{{ role_names.get(role_id, role_id) }}</td>
+                    <td>{{ info.priority }}</td>
+                    <td><button class="button is-danger is-small" onclick="deleteIcon('{{ role_id }}')">✖</button></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p>Keine Icons konfiguriert.</p>
+        {% endif %}
+
+    </div>
+</div>
+
+<div class="card mb-6">
+    <header class="card-header">
+        <p class="card-header-title">Nickname-Format</p>
+    </header>
+    <div class="card-content">
+
+        <div class="field">
+            <input id="icon_enabled" type="checkbox" class="switch is-rounded is-info" {% if icon_enabled %}checked{%
+                endif %}>
+            <label for="icon_enabled">Rollen-Icons aktivieren</label>
+        </div>
+
+        <form id="formatForm" class="field has-addons" style="max-width:400px">
+            <div class="control is-expanded">
+                <input class="input" type="text" id="name_format" value="{{ cfg_format }}">
+            </div>
+            <div class="control">
+                <button class="button is-link" type="submit">Speichern</button>
+            </div>
+        </form>
+
+        <div class="field mt-4">
+            <button id="apply_icons" class="button is-warning">🔄 Alle Nicknames aktualisieren</button>
+        </div>
+
+    </div>
+</div>
+
+<div class="card">
+    <header class="card-header">
+        <p class="card-header-title">Voice-Channel-User-Creation</p>
+    </header>
+    <div class="card-content">
+
+        <div class="field">
+            <input id="vcuc_enabled" type="checkbox" class="switch is-rounded is-info" {% if vcuc_enabled %}checked{%
+                endif %}>
+            <label for="vcuc_enabled">Feature aktivieren</label>
+        </div>
+
+        <form id="vcucForm" style="max-width:600px">
+            <div class="field">
+                <label class="label">Generator-Channel</label>
+                <div class="control">
+                    <select id="generator_select" required data-choices>
+                        <option value="" disabled selected>Voice-Channel wählen</option>
+                        {% for ch in voice_channels %}
+                        <option value="{{ ch.id }}">{{ ch.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="field">
+                <label class="label">Ziel-Kategorie</label>
+                <div class="control">
+                    <select id="category_select" required data-choices>
+                        <option value="" disabled selected>Kategorie wählen</option>
+                        {% for cat in categories %}
+                        <option value="{{ cat.id }}">{{ cat.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="field">
+                <label class="label">Namens-Muster</label>
+                <div class="control">
+                    <input class="input" type="text" id="name_pattern" placeholder="{username} #{number}">
+                    <p class="help">Verfügbare Platzhalter: <code>{username}</code>, <code>{number}</code></p>
+                </div>
+            </div>
+
+            <div class="field">
+                <div class="control">
+                    <button class="button is-primary" type="submit">Hinzufügen / Aktualisieren</button>
+                </div>
+            </div>
+        </form>
+
+        {% if vcuc_cfg %}
+        <table class="table is-fullwidth is-striped is-hoverable">
+            <thead>
+                <tr>
+                    <th>Generator</th>
+                    <th>Kategorie</th>
+                    <th>Muster</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for gen_id, data in vcuc_cfg.items() %}
+                <tr>
+                    <td>{{ voice_channel_names.get(gen_id|string, gen_id) }}</td>
+                    <td>{{ category_names.get(data['target_category_id']|string, data['target_category_id']) }}</td>
+                    <td>{{ data.get('name_pattern', data.get('name_format', '')) }}</td>
+                    <td><button class="button is-danger is-small" onclick="deleteVcuc('{{ gen_id }}')">✖</button></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p>Keine Generator-Channel konfiguriert.</p>
+        {% endif %}
+
+    </div>
+</div>
+
+<script>
+    async function deleteIcon(roleId) {
+        await fetch(`/guilds/{{ guild.id }}/role-icons/${roleId}`, { method: 'DELETE' });
+        location.reload();
+    }
+    document.getElementById('addIconForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const payload = {
+            role_id: document.getElementById('role_id').value,
+            emoji: document.getElementById('emoji').value,
+            priority: parseInt(document.getElementById('priority').value) || 0
+        };
+        await fetch(`/guilds/{{ guild.id }}/role-icons`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        location.reload();
+    });
+
+    document.getElementById('formatForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const fmt = document.getElementById('name_format').value;
+        await fetch(`/guilds/{{ guild.id }}/name-format`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name_format: fmt })
+        });
+        alert('Format gespeichert');
+    });
+
+    document.getElementById('icon_enabled').addEventListener('change', async (e) => {
+        const enabled = e.target.checked;
+        await fetch(`/guilds/{{ guild.id }}/role-icons-enabled`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled })
+        });
+    });
+
+    // ---- Voice Channel User Creation ----
+
+    document.getElementById('vcuc_enabled').addEventListener('change', async (e) => {
+        const enabled = e.target.checked;
+        await fetch(`/guilds/{{ guild.id }}/voice-channel-user-creation-enabled`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled })
+        });
+    });
+
+    document.getElementById('vcucForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const payload = {
+            generator_channel_id: document.getElementById('generator_select').value,
+            target_category_id: document.getElementById('category_select').value,
+            name_pattern: document.getElementById('name_pattern').value || "{username}"
+        };
+        await fetch(`/guilds/{{ guild.id }}/voice-channel-user-creation-config`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        location.reload();
+    });
+
+    async function deleteVcuc(genId) {
+        await fetch(`/guilds/{{ guild.id }}/voice-channel-user-creation-config/${genId}`, { method: 'DELETE' });
+        location.reload();
+    }
+
+    document.getElementById('apply_icons').addEventListener('click', async () => {
+        await fetch(`/guilds/{{ guild.id }}/apply-role-icons`, { method: 'POST' });
+        alert('Alle Nicknames wurden aktualisiert');
+    });
+</script>
+{% endblock %}
