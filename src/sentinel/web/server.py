@@ -414,4 +414,26 @@ def get_app(bot: SentinelBot) -> FastAPI:  # noqa: D401
         save_guild_config(guild_id, cfg)
         return {"status": "ok"}
 
+    @app.post("/guilds/{guild_id}/apply-role-icons", tags=["actions"])
+    async def apply_role_icons(guild_id: int, request: Request):
+        """Iterate over all guild members and re-apply the Role-Icon nickname format."""
+
+        _require_admin(guild_id, request)
+
+        guild = bot.get_guild(guild_id)
+        if guild is None:
+            raise HTTPException(status_code=404, detail="Guild not found or bot not in guild.")
+
+        role_cog = bot.get_cog("RoleIcons")
+        if role_cog is None:  # pragma: no cover
+            raise HTTPException(status_code=500, detail="RoleIcons cog not loaded.")
+
+        updated = 0
+        for member in guild.members:
+            # Access the internal helper directly – safe within our codebase
+            await role_cog._apply_nickname(member)  # type: ignore[attr-defined]
+            updated += 1
+
+        return {"updated": updated}
+
     return app 

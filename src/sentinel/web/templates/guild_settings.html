@@ -80,6 +80,10 @@
             </div>
         </form>
 
+        <div class="field mt-4">
+            <button id="apply_icons" class="button is-warning">🔄 Alle Nicknames aktualisieren</button>
+        </div>
+
     </div>
 </div>
 
@@ -233,5 +237,10 @@
         await fetch(`/guilds/{{ guild.id }}/voice-channel-user-creation-config/${genId}`, { method: 'DELETE' });
         location.reload();
     }
+
+    document.getElementById('apply_icons').addEventListener('click', async () => {
+        await fetch(`/guilds/{{ guild.id }}/apply-role-icons`, { method: 'POST' });
+        alert('Alle Nicknames wurden aktualisiert');
+    });
 </script>
 {% endblock %}
