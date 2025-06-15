@@ -43,8 +43,8 @@
 
 ```bash
 # 1) Get the code
-$ git clone https://github.com/<your-org>/aeternum-sentinel.git
-$ cd aeternum-sentinel
+$ git clone https://github.com/Katze719/Aeternum-Sentinel.git
+$ cd Aeternum-Sentinel
 
 # 2) Copy env template & fill in your secrets
 $ cp .env.example .env   # edit with your Discord credentials
@@ -59,7 +59,7 @@ $ docker compose up -d
 version: "3.8"
 services:
   sentinel:
-    image: ghcr.io/<your-org>/aeternum-sentinel:latest
+    image: ghcr.io/katze719/aeternum-sentinel:latest
     env_file:
       - .env
     volumes:

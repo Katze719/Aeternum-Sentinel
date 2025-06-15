@@ -1,7 +1,7 @@
 services:
   sentinel:
     # Use the pre-built image from GitHub Container Registry.
-    image: ghcr.io/aeternum-guild/aeternum-sentinel:latest
+    image: ghcr.io/katze719/aeternum-sentinel:latest
     # Alternatively build locally:
     # build: .
 
