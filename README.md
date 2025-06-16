@@ -14,6 +14,10 @@
 
 ## ✨ Features
 
+### 🤖 All Slash Commands
+- `/ping` – latency check.  
+- `/web` – returns dashboard URL.
+
 ### 🎙️ Temporary Voice Channels
 - ✅ Designate one or more **generator** channels.  
 - ✅ Bot auto-creates a private voice channel and moves the user in.  
@@ -31,10 +35,6 @@
 - ✅ Discord OAuth2 login & multi-guild selector.  
 - ✅ Manage role-icons, voice-channel generators, command prefix & more.  
 - ✅ Health endpoint (`/health`) for orchestration.
-
-### 🔧 Utility Commands
-- `/ping` – latency check.  
-- `/web` – returns dashboard URL.
 
 ### 💾 Persistent Configuration
 - JSON per-guild files under `data/` — **no database needed**.
