@@ -1,5 +1,5 @@
 services:
-  sentinel:
+  app:
     # Use the pre-built image from GitHub Container Registry.
     image: ghcr.io/katze719/aeternum-sentinel:latest
     # Alternatively build locally:

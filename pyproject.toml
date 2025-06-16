@@ -38,5 +38,5 @@ build-backend = "poetry.core.masonry.api"
 [tool.poetry]
 # Source-layout mapping so Poetry can find the package
 packages = [
-    { include = "sentinel", from = "src" }
+    {include = "sentinel", from = "src"}
 ]

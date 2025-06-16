@@ -17,6 +17,8 @@
 ### 🤖 All Slash Commands
 - `/ping` – latency check.  
 - `/web` – returns dashboard URL.
+- `/cleanup_voice` – clean up empty voice channels
+- `/update_icons` – update everyones icons
 
 ### 🎙️ Temporary Voice Channels
 - ✅ Designate one or more **generator** channels.  

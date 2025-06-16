@@ -18,12 +18,11 @@ async def _run():
 
     bot = SentinelBot()
 
-    # Run web server in background
     await bot.start_web_server()
 
-    # Graceful shutdown on SIGTERM/SIGINT
     loop = asyncio.get_running_loop()
 
+    # Graceful shutdown on SIGTERM/SIGINT
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, lambda s=sig: asyncio.create_task(bot.close()))
 
