@@ -4,11 +4,11 @@
 /* ---------------- Sentinel Dark Theme (SCSS) ---------------- */
 
 // Color palette variables
-$bg-dark: #2f3136;
-$bg-card: #36393f;
-$bg-elevated: #202225;
-$text-normal: #dcddde;
-$accent: #ff4f4f;
+$bg-dark-color: #2f3136;
+$bg-card-color: #36393f;
+$bg-elevated-color: #202225;
+$text-normal-color: #dcddde;
+$accent-color: #ff4f4f;
 
 // Expose them as CSS custom properties for runtime usage
 :root {
@@ -19,15 +19,14 @@ $accent: #ff4f4f;
     --accent: #{$accent};
 }
 
-html,
 body {
-    background: var(--bg-dark);
-    color: var(--text-normal);
-    height: 100%;
+    background-color: $bg-dark;
+    color: $text-normal;
+    height: 100vh;
 }
 
 .card {
-    background: var(--bg-card);
+    background-color: $bg-card;
     color: var(--text-normal);
     border: none;
     border-radius: 8px;
@@ -35,7 +34,7 @@ body {
 
 .navbar,
 .footer {
-    background: var(--bg-elevated);
+    background-color: $bg-elevated;
 }
 
 .button {
@@ -43,8 +42,8 @@ body {
     &.is-primary,
     &.is-link,
     &.is-info {
-        background: var(--accent);
-        border-color: var(--accent);
+        background-color: $accent;
+        border-color: $accent;
         color: #fff;
 
         &:hover {
@@ -54,45 +53,45 @@ body {
 }
 
 .switch.is-info input:checked+.check {
-    background: var(--accent);
+    background-color: $accent;
 }
 
 .input,
 .select select {
-    background: var(--bg-elevated);
-    border-color: var(--bg-card);
-    color: var(--text-normal);
+    background-color: $bg-elevated;
+    border-color: $bg-card;
+    color: $text-normal;
 }
 
 .table {
-    background: var(--bg-card);
-    color: var(--text-normal);
+    background-color: $bg-card;
+    color: $text-normal;
 
     thead th {
-        background: var(--bg-card);
-        color: var(--text-normal);
-        border-bottom-color: var(--bg-elevated);
+        background-color: $bg-card;
+        color: $text-normal;
+        border-bottom-color: $bg-elevated;
     }
 
     &.is-striped tbody tr:nth-child(odd) {
-        background: var(--bg-elevated);
+        background-color: $bg-elevated;
     }
 
     &.is-striped tbody tr:not(.is-selected):nth-child(even) {
-        background: var(--bg-card);
+        background-color: $bg-card;
     }
 
     &.is-striped tbody tr:not(.is-selected):hover,
     &.is-striped.is-hoverable tbody tr:not(.is-selected):hover,
     &.is-hoverable tbody tr:not(.is-selected):hover {
-        background: var(--bg-card) !important;
+        background-color: $bg-card;
     }
 }
 
 .title,
 .subtitle,
 label {
-    color: var(--text-normal) !important;
+    color: $text-normal;
 }
 
 .full-center {
@@ -104,22 +103,18 @@ label {
 }
 
 hr {
-    background: var(--bg-elevated);
+    background-color: $bg-elevated;
 }
 
-/* ----- Cards & Headers ----- */
 .card-header {
-    background: var(--bg-elevated);
+    background-color: $bg-elevated;
     border: none;
 
     .card-header-title {
-        color: var(--text-normal);
+        color: $text-normal;
     }
 }
 
-/* ----- Form & Select Overrides ----- */
-
-// Placeholder color
 .input::placeholder,
 textarea::placeholder {
     color: #a0a0a0;
@@ -130,22 +125,22 @@ textarea::placeholder {
 .choices__inner,
 .choices__list--dropdown,
 .choices__list[role="listbox"] {
-    background: var(--bg-elevated) !important;
-    color: var(--text-normal) !important;
-    border-color: var(--bg-card) !important;
+    background-color: $bg-elevated !important;
+    color: $text-normal !important;
+    border-color: $bg-card !important;
 }
 
 .choices__list--dropdown {
-    background: var(--bg-elevated) !important;
-    border-color: var(--bg-card) !important;
+    background-color: $bg-elevated !important;
+    border-color: $bg-card !important;
 
     .choices__item,
     .choices__item--selectable {
-        background: var(--bg-elevated) !important;
-        color: var(--text-normal) !important;
+        background-color: $bg-elevated !important;
+        color: $text-normal !important;
 
         &.is-highlighted {
-            background: var(--bg-card) !important;
+            background-color: $bg-card !important;
         }
     }
 
@@ -155,9 +150,9 @@ textarea::placeholder {
 
     // Search field inside dropdown
     .choices__input {
-        background: var(--bg-elevated) !important;
-        color: var(--text-normal) !important;
-        border-color: var(--bg-card) !important;
+        background-color: $bg-elevated !important;
+        color: $text-normal !important;
+        border-color: $bg-card !important;
 
         &::placeholder {
             color: #a0a0a0 !important;
@@ -170,9 +165,9 @@ textarea::placeholder {
     min-width: 340px !important;
 
     .choices__inner {
-        background: var(--bg-elevated) !important;
-        border-color: var(--bg-card) !important;
-        color: var(--text-normal) !important;
+        background-color: $bg-elevated !important;
+        border-color: $bg-card !important;
+        color: $text-normal !important;
         min-height: calc(2.25em + .125em + 2px) !important;
         padding: calc(0.375em - 1px) calc(0.625em - 1px) !important;
         display: flex !important;
@@ -182,7 +177,7 @@ textarea::placeholder {
     }
 
     &::after {
-        border-color: var(--text-normal) transparent transparent !important;
+        border-color: $text-normal transparent transparent !important;
     }
 }
 
