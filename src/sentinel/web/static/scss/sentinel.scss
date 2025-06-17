@@ -1,4 +1,3 @@
-/* SCSS version of sentinel styles – identical to current CSS but allows future use of variables, mixins, etc. */
 @charset "utf-8";
 
 /* ---------------- Sentinel Dark Theme (SCSS) ---------------- */
@@ -11,9 +10,9 @@ $text-normal-color: #dcddde;
 $accent-color: #ff4f4f;
 
 // Additional color variables
-$text-light-color: #ffffff; // for inverted text (e.g., white text)
-$placeholder-color: #a0a0a0; // placeholder grey
-$disabled-color: #777777; // disabled grey
+$text-light-color: #ffffff;
+$placeholder-color: #a0a0a0;
+$disabled-color: #777777;
 
 body {
     background-color: $bg-dark-color;

@@ -66,6 +66,7 @@ def get_app(bot: SentinelBot) -> FastAPI:  # noqa: D401
 
         static_dir = Path(__file__).parent / "static"
         compile_scss(static_dir / "sentinel.scss", static_dir / "sentinel.css")
+        compile_scss(static_dir / "scss" / "sentinel.scss", static_dir / "css" / "sentinel.css")
     except Exception as _:
         # If Sass compilation fails we continue with last generated CSS
         pass

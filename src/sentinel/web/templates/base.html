@@ -7,7 +7,7 @@
     <title>Sentinel Bot</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css" />
-    <link rel="stylesheet" href="/static/sentinel.css" />
+    <link rel="stylesheet" href="/static/css/sentinel.css" />
     <style>
         .toast {
             position: fixed;
@@ -26,34 +26,7 @@
         </div>
     </section>
     <script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            // Toast helper
-            function showToast(message, type = 'is-danger') {
-                const div = document.createElement('div');
-                div.className = `notification ${type} toast`;
-                div.innerText = message;
-                document.body.appendChild(div);
-                setTimeout(() => div.remove(), 4000);
-            }
-            const params = new URLSearchParams(window.location.search);
-            const msgKey = params.get('msg');
-            if (msgKey) {
-                const messages = {
-                    login_required: 'Bitte einloggen, um fortzufahren.',
-                    guild_not_found: 'Guild nicht gefunden.',
-                    user_not_in_guild: 'Du bist nicht Mitglied dieser Guild.',
-                    insufficient_perms: 'Administratorrechte erforderlich.'
-                };
-                showToast(messages[msgKey] || 'Fehler');
-            }
-
-            // Activate Choices.js on any select with data-choices attribute (moved here)
-            document.querySelectorAll('select[data-choices]').forEach((el) => {
-                new Choices(el, { searchEnabled: true, itemSelectText: '' });
-            });
-        });
-    </script>
+    <script type="module" src="/static/js/sentinel.js" defer></script>
 </body>
 
 </html>
