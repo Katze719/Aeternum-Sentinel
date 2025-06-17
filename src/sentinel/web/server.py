@@ -102,7 +102,7 @@ def get_app(bot: SentinelBot) -> FastAPI:  # noqa: D401
     DISCORD_TOKEN_URL = "https://discord.com/api/oauth2/token"
     DISCORD_USER_ENDPOINT = "https://discord.com/api/users/@me"
 
-    _state_store: set[str] = set()
+    _state_store: dict[str, str] = {}
     _session_store: dict[str, dict] = {}
 
     SESSION_COOKIE = "sentinel_session"
@@ -119,12 +119,21 @@ def get_app(bot: SentinelBot) -> FastAPI:  # noqa: D401
         return f"{DISCORD_AUTHORIZE_URL}?{urlencode(params)}"
 
     @app.get("/login", tags=["auth"])
-    async def login():
-        """Redirect the user to Discord's OAuth2 authorization page."""
+    async def login(request: Request, next: str | None = "/dashboard"):
+        """Kick-off the Discord OAuth2 flow.
+
+        We remember the desired *final* URL (``next``) of the user in ``_state_store``.
+        After the callback this allows us to forward them directly to the guild settings
+        (or any other page) instead of always landing on the dashboard.
+        """
 
         settings = get_settings()
+
+        # Generate a cryptographically secure, unique state string and remember the
+        # originally requested target path so we can restore it later.
         state = secrets.token_urlsafe(16)
-        _state_store.add(state)
+        _state_store[state] = next or "/dashboard"
+
         url = _build_authorize_url(state, settings)
         return RedirectResponse(url)
 
@@ -134,7 +143,8 @@ def get_app(bot: SentinelBot) -> FastAPI:  # noqa: D401
 
         if state not in _state_store:
             raise HTTPException(status_code=400, detail="Invalid state parameter.")
-        _state_store.discard(state)
+        # Retrieve and remove target path from state store.
+        redirect_target = _state_store.pop(state, "/dashboard")
 
         settings = get_settings()
 
@@ -172,7 +182,7 @@ def get_app(bot: SentinelBot) -> FastAPI:  # noqa: D401
             "user": user,
         }
 
-        response = RedirectResponse(url="/dashboard")
+        response = RedirectResponse(url=redirect_target)
         response.set_cookie(SESSION_COOKIE, session_id, max_age=60 * 60 * 24, httponly=True)
         return response
 
@@ -196,8 +206,12 @@ def get_app(bot: SentinelBot) -> FastAPI:  # noqa: D401
         accepts_html = "text/html" in (request.headers.get("accept", ""))
         if not session:
             if accepts_html:
-                # Redirect to landing with toast message
-                raise HTTPException(status_code=302, headers={"Location": "/?msg=login_required"})
+                # Direct the user straight into the OAuth flow, preserving the current
+                # guild settings URL so we can jump back here afterwards.
+                raise HTTPException(
+                    status_code=302,
+                    headers={"Location": f"/login?next=/guilds/{guild_id}"},
+                )
             raise HTTPException(status_code=401, detail="Authentication required.")
 
         guild = bot.get_guild(guild_id)
