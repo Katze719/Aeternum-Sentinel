@@ -10,6 +10,11 @@ $bg-elevated-color: #202225;
 $text-normal-color: #dcddde;
 $accent-color: #ff4f4f;
 
+// Additional color variables
+$text-light-color: #ffffff; // for inverted text (e.g., white text)
+$placeholder-color: #a0a0a0; // placeholder grey
+$disabled-color: #777777; // disabled grey
+
 body {
     background-color: $bg-dark-color;
     color: $text-normal-color;
@@ -35,7 +40,7 @@ body {
     &.is-info {
         background-color: $accent-color;
         border-color: $accent-color;
-        color: #fff;
+        color: $text-light-color;
 
         &:hover {
             filter: brightness(1.1);
@@ -108,7 +113,7 @@ hr {
 
 .input::placeholder,
 textarea::placeholder {
-    color: #a0a0a0;
+    color: $placeholder-color;
     opacity: 1;
 }
 
@@ -136,7 +141,7 @@ textarea::placeholder {
     }
 
     .choices__item--disabled {
-        color: #777 !important;
+        color: $disabled-color !important;
     }
 
     // Search field inside dropdown
@@ -146,7 +151,7 @@ textarea::placeholder {
         border-color: $bg-card-color !important;
 
         &::placeholder {
-            color: #a0a0a0 !important;
+            color: $placeholder-color !important;
         }
     }
 }
