@@ -65,7 +65,6 @@ def get_app(bot: SentinelBot) -> FastAPI:  # noqa: D401
         from sentinel.utils.assets import compile_scss  # local import to avoid cost if unused
 
         static_dir = Path(__file__).parent / "static"
-        compile_scss(static_dir / "sentinel.scss", static_dir / "sentinel.css")
         compile_scss(static_dir / "scss" / "sentinel.scss", static_dir / "css" / "sentinel.css")
     except Exception as _:
         # If Sass compilation fails we continue with last generated CSS
