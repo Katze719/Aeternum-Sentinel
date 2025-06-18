@@ -74,8 +74,16 @@ services:
       HOST: "0.0.0.0"                           # default "0.0.0.0"
       PORT: "8000"                              # default 8000
 
+      # === TLS (optional) ===
+      # Provide absolute or container-internal paths to your certificate files.
+      # When both are present **and** the files exist, Sentinel starts via HTTPS.
+      SSL_CERTFILE: "/certs/fullchain.pem"      # no default
+      SSL_KEYFILE: "/certs/privkey.pem"        # no default
+
     volumes:
       - ./data:/app/data
+      # Mount directory that contains your certificate and key (paths must match above!)
+      - ./certs:/certs:ro  # read-only mount for TLS assets
     ports:
       - "8000:8000"   # FastAPI web UI
 ```
