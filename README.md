@@ -43,46 +43,44 @@
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Quick Start (Docker Compose) 🐳
 
-### Option A: Docker Compose (recommended) 🐳
+Create a `docker-compose.yml` like the one below and start the stack:
 
 ```bash
-# 1) Get the code
-$ git clone https://github.com/Katze719/Aeternum-Sentinel.git
-$ cd Aeternum-Sentinel
-
-# 2) Copy env template & fill in your secrets
-$ cp .env.example .env   # edit with your Discord credentials
-
-# 3) Fire it up
-$ docker compose up -d
+docker compose up -d
 ```
 
-`docker-compose.yml` (included in the repo) – minimal example:
+`docker-compose.yml` example (includes every available environment variable):
 
 ```yaml
 version: "3.8"
 services:
   sentinel:
     image: ghcr.io/katze719/aeternum-sentinel:latest
-    env_file:
-      - .env
+    restart: unless-stopped
+
+    environment:
+      # === Required ===
+      DISCORD_TOKEN: "your-bot-token"           # (required)
+      DISCORD_CLIENT_ID: "123456789012345678"   # (required)
+      DISCORD_CLIENT_SECRET: "your-oauth-client-secret" # (required)
+
+      # === Optional (defaults shown) ===
+      COMMAND_PREFIX: "!"                       # default "!"
+      OAUTH_REDIRECT_URI: "http://localhost:8000/callback"  # default shown
+
+      # Web server
+      HOST: "0.0.0.0"                           # default "0.0.0.0"
+      PORT: "8000"                              # default 8000
+
     volumes:
       - ./data:/app/data
     ports:
-      - "8000:8000"   # Web UI
+      - "8000:8000"   # FastAPI web UI
 ```
 
-After the containers start, open **http://localhost:8000** ➜ **Login** ➜ configure away! ✨
-
-### Option B: Local Development 🖥️
-
-```bash
-poetry install          # or pip install -r requirements.txt
-cp .env.example .env    # add your Discord credentials
-poetry run sentinel     # or python -m sentinel.cli
-```
+Once the container is running, open **http://localhost:8000** in your browser, log in with Discord and start configuring! ✨
 
 ---
 
