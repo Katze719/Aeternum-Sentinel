@@ -5,6 +5,7 @@ from typing import List
 import re
 
 import discord
+from discord import app_commands
 from discord.ext import commands
 
 from sentinel.utils.storage import load_guild_config, save_guild_config
@@ -79,13 +80,19 @@ class RoleIcons(commands.Cog):
 
     # Commands ------------------------------------------------------------
 
-    @commands.hybrid_command(name="update_icons", description="Update all member nicknames with role icons.")
-    @commands.has_guild_permissions(manage_guild=True)
-    async def update_icons(self, ctx: commands.Context):
-        await ctx.defer()
-        for member in ctx.guild.members:  # type: ignore[attr-defined]
+    @app_commands.command(name="update_icons", description="Update all member nicknames with role icons.")
+    @app_commands.default_permissions(manage_guild=True)
+    async def update_icons(self, interaction: discord.Interaction):
+        await interaction.response.defer(thinking=True)
+        guild = interaction.guild
+        if guild is None:
+            await interaction.followup.send("❌ Guild context required.")
+            return
+
+        for member in guild.members:
             await self._apply_nickname(member)
-        await ctx.reply("✔️ Alle Nicknames aktualisiert.")
+
+        await interaction.followup.send("✔️ Alle Nicknames aktualisiert.")
 
     # Listener to auto-update when role added/removed
 

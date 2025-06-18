@@ -47,7 +47,8 @@
                     <td>{{ info.emoji }}</td>
                     <td>{{ role_names.get(role_id, role_id) }}</td>
                     <td>{{ info.priority }}</td>
-                    <td><button class="button is-danger is-small" onclick="deleteIcon('{{ role_id }}')">✖</button></td>
+                    <td><button class="button is-danger is-small" onclick="deleteIcon(this, '{{ role_id }}')">✖</button>
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -155,7 +156,8 @@
                     <td>{{ voice_channel_names.get(gen_id|string, gen_id) }}</td>
                     <td>{{ category_names.get(data['target_category_id']|string, data['target_category_id']) }}</td>
                     <td>{{ data.get('name_pattern', data.get('name_format', '')) }}</td>
-                    <td><button class="button is-danger is-small" onclick="deleteVcuc('{{ gen_id }}')">✖</button></td>
+                    <td><button class="button is-danger is-small" onclick="deleteVcuc(this, '{{ gen_id }}')">✖</button>
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -168,12 +170,17 @@
 </div>
 
 <script>
-    async function deleteIcon(roleId) {
+    async function deleteIcon(btn, roleId) {
+        btn.classList.add('is-loading');
+        btn.disabled = true;
         await fetch(`/guilds/{{ guild.id }}/role-icons/${roleId}`, { method: 'DELETE' });
         location.reload();
     }
     document.getElementById('addIconForm').addEventListener('submit', async (e) => {
         e.preventDefault();
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        submitBtn.classList.add('is-loading');
+        submitBtn.disabled = true;
         const payload = {
             role_id: document.getElementById('role_id').value,
             emoji: document.getElementById('emoji').value,
@@ -189,6 +196,9 @@
 
     document.getElementById('formatForm').addEventListener('submit', async (e) => {
         e.preventDefault();
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        submitBtn.classList.add('is-loading');
+        submitBtn.disabled = true;
         const fmt = document.getElementById('name_format').value;
         await fetch(`/guilds/{{ guild.id }}/name-format`, {
             method: 'POST',
@@ -196,6 +206,8 @@
             body: JSON.stringify({ name_format: fmt })
         });
         alert('Format gespeichert');
+        submitBtn.classList.remove('is-loading');
+        submitBtn.disabled = false;
     });
 
     document.getElementById('icon_enabled').addEventListener('change', async (e) => {
@@ -220,6 +232,9 @@
 
     document.getElementById('vcucForm').addEventListener('submit', async (e) => {
         e.preventDefault();
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        submitBtn.classList.add('is-loading');
+        submitBtn.disabled = true;
         const payload = {
             generator_channel_id: document.getElementById('generator_select').value,
             target_category_id: document.getElementById('category_select').value,
@@ -233,14 +248,21 @@
         location.reload();
     });
 
-    async function deleteVcuc(genId) {
+    async function deleteVcuc(btn, genId) {
+        btn.classList.add('is-loading');
+        btn.disabled = true;
         await fetch(`/guilds/{{ guild.id }}/voice-channel-user-creation-config/${genId}`, { method: 'DELETE' });
         location.reload();
     }
 
-    document.getElementById('apply_icons').addEventListener('click', async () => {
+    document.getElementById('apply_icons').addEventListener('click', async (e) => {
+        const btn = e.target;
+        btn.classList.add('is-loading');
+        btn.disabled = true;
         await fetch(`/guilds/{{ guild.id }}/apply-role-icons`, { method: 'POST' });
         alert('Alle Nicknames wurden aktualisiert');
+        btn.classList.remove('is-loading');
+        btn.disabled = false;
     });
 </script>
 {% endblock %}

@@ -6,6 +6,7 @@ import re
 
 import discord
 from discord.ext import commands
+from discord import app_commands
 
 from sentinel.utils.storage import load_guild_config
 
@@ -164,13 +165,14 @@ class VoiceChannelUserCreation(commands.Cog):
     # Command
     # ------------------------------------------------------------------
 
-    @commands.hybrid_command(name="cleanup_voice", description="Delete empty auto-created voice channels.")
-    @commands.has_guild_permissions(manage_guild=True)
-    async def cleanup_voice(self, ctx: commands.Context):
-        guild = ctx.guild  # type: ignore[attr-defined]
+    @app_commands.command(name="cleanup_voice", description="Delete empty auto-created voice channels.")
+    @app_commands.default_permissions(manage_guild=True)
+    async def cleanup_voice(self, interaction: discord.Interaction):
+        guild = interaction.guild
         if guild is None:
-            await ctx.reply("❌ Guild context required.")
+            await interaction.response.send_message("❌ Guild context required.", ephemeral=True)
             return
+
         removed = 0
         for chan_id in list(self._auto_channels.get(guild.id, set())):
             channel = guild.get_channel(chan_id)
@@ -181,7 +183,8 @@ class VoiceChannelUserCreation(commands.Cog):
                     removed += 1
                 except discord.Forbidden:
                     pass
-        await ctx.reply(f"✔️ {removed} channel(s) removed.")
+
+        await interaction.response.send_message(f"✔️ {removed} channel(s) removed.")
 
     # ------------------------------------------------------------------
     # Internal numbering helper

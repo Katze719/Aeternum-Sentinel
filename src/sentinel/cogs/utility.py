@@ -1,4 +1,6 @@
 from discord.ext import commands
+import discord
+from discord import app_commands
 
 
 class Utility(commands.Cog):
@@ -7,16 +9,16 @@ class Utility(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @commands.hybrid_command(name="ping", description="Check bot latency.")
-    async def ping(self, ctx: commands.Context):  # noqa: D401
+    @app_commands.command(name="ping", description="Check bot latency.")
+    async def ping(self, interaction: discord.Interaction):  # noqa: D401
         latency = self.bot.latency * 1000  # Convert to ms
-        await ctx.reply(f"Pong! {latency:.2f} ms")
+        await interaction.response.send_message(f"Pong! {latency:.2f} ms")
 
-    @commands.hybrid_command(
+    @app_commands.command(
         name="web",
         description="Get the URL of the Sentinel web interface or this guild's settings page.",
     )
-    async def web(self, ctx: commands.Context):  # noqa: D401
+    async def web(self, interaction: discord.Interaction):  # noqa: D401
         """Return the web interface URL.
 
         If invoked from within a guild, respond with the direct link to **that** guild's
@@ -32,13 +34,13 @@ class Utility(commands.Cog):
         base_url = settings.oauth_redirect_uri.rsplit("/", 1)[0]
 
         # If the command is used inside a guild, append the guild-specific path.
-        if ctx.guild is not None:
-            url = f"{base_url}/guilds/{ctx.guild.id}"
+        if interaction.guild is not None:
+            url = f"{base_url}/guilds/{interaction.guild.id}"
         else:
             # DM or unknown guild – fall back to dashboard landing.
             url = base_url
 
-        await ctx.reply(f"🌐 Sentinel Web-UI: {url}")
+        await interaction.response.send_message(f"🌐 Sentinel Web-UI: {url}")
 
 
 async def setup(bot: commands.Bot):
