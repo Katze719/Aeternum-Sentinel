@@ -32,6 +32,13 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"  # `HOST`
     port: int = 8000  # `PORT`
 
+    # Optional TLS/SSL configuration
+    # If both files are provided and exist the web server will automatically
+    # switch to HTTPS. All values are taken from the corresponding environment
+    # variables `SSL_CERTFILE` and `SSL_KEYFILE`.
+    ssl_certfile: Optional[str] = None  # `SSL_CERTFILE`
+    ssl_keyfile: Optional[str] = None  # `SSL_KEYFILE`
+
     # Database (optional)
     database_url: Optional[str] = None  # `DATABASE_URL`
 

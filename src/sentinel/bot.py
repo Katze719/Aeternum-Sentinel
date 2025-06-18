@@ -66,12 +66,46 @@ class SentinelBot(commands.Bot):
         """Start the FastAPI web server in a background task."""
 
         settings = get_settings()
-        # Log the public URL where the web UI should be reachable. We derive it from the
-        # configured OAuth redirect (everything before the last slash) so users can
-        # override it easily via the OAUTH_REDIRECT_URI env var.
+        # Detect whether to enable HTTPS. Both certificate and key files must be
+        # configured *and* exist on disk; otherwise we fall back to HTTP.
+        cert_path: Path | None = None
+        key_path: Path | None = None
+
+        if settings.ssl_certfile and settings.ssl_keyfile:
+            cert_path = Path(settings.ssl_certfile)
+            key_path = Path(settings.ssl_keyfile)
+
+            if cert_path.is_file() and key_path.is_file():
+                _log.info("Enabling HTTPS using cert '%s' and key '%s'", cert_path, key_path)
+            else:
+                _log.warning(
+                    "SSL configuration detected but certificate or key file not found (cert=%s, key=%s). "
+                    "Starting in HTTP mode.",
+                    cert_path,
+                    key_path,
+                )
+                cert_path = None
+                key_path = None
+
         ui_base_url = settings.oauth_redirect_uri.rsplit("/", 1)[0]
         _log.info("Web interface available at %s", ui_base_url)
-        config = uvicorn.Config(get_app(self), host=settings.host, port=settings.port, log_level="info")
+
+        if cert_path and key_path:
+            config = uvicorn.Config(
+                get_app(self),
+                host=settings.host,
+                port=settings.port,
+                log_level="info",
+                ssl_certfile=str(cert_path),
+                ssl_keyfile=str(key_path),
+            )
+        else:
+            config = uvicorn.Config(
+                get_app(self),
+                host=settings.host,
+                port=settings.port,
+                log_level="info",
+            )
         self._uvicorn = uvicorn.Server(config=config)
 
         loop = asyncio.get_event_loop()
