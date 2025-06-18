@@ -12,7 +12,12 @@ class Utility(commands.Cog):
     @app_commands.command(name="ping", description="Check bot latency.")
     async def ping(self, interaction: discord.Interaction):  # noqa: D401
         latency = self.bot.latency * 1000  # Convert to ms
-        await interaction.response.send_message(f"Pong! {latency:.2f} ms")
+        embed = discord.Embed(
+            title="🏓 Pong!",
+            description=f"Latenz: **{latency:.2f} ms**",
+            color=discord.Color.green(),
+        )
+        await interaction.response.send_message(embed=embed)
 
     @app_commands.command(
         name="web",
@@ -40,7 +45,13 @@ class Utility(commands.Cog):
             # DM or unknown guild – fall back to dashboard landing.
             url = base_url
 
-        await interaction.response.send_message(f"🌐 Sentinel Web-UI: {url}")
+        embed = discord.Embed(
+            title="🌐 Sentinel Web-UI",
+            description=url,
+            color=discord.Color.blue(),
+            url=url,
+        )
+        await interaction.response.send_message(embed=embed)
 
 
 async def setup(bot: commands.Bot):

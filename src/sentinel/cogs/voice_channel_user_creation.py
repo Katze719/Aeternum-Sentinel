@@ -170,7 +170,8 @@ class VoiceChannelUserCreation(commands.Cog):
     async def cleanup_voice(self, interaction: discord.Interaction):
         guild = interaction.guild
         if guild is None:
-            await interaction.response.send_message("❌ Guild context required.", ephemeral=True)
+            embed_err = discord.Embed(description="❌ Guild context required.", color=discord.Color.red())
+            await interaction.response.send_message(embed=embed_err, ephemeral=True)
             return
 
         removed = 0
@@ -184,7 +185,8 @@ class VoiceChannelUserCreation(commands.Cog):
                 except discord.Forbidden:
                     pass
 
-        await interaction.response.send_message(f"✔️ {removed} channel(s) removed.")
+        embed_ok = discord.Embed(description=f"✔️ {removed} channel(s) removed.", color=discord.Color.green())
+        await interaction.response.send_message(embed=embed_ok)
 
     # ------------------------------------------------------------------
     # Internal numbering helper

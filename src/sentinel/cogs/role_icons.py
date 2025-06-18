@@ -86,13 +86,15 @@ class RoleIcons(commands.Cog):
         await interaction.response.defer(thinking=True)
         guild = interaction.guild
         if guild is None:
-            await interaction.followup.send("❌ Guild context required.")
+            embed_err = discord.Embed(description="❌ Guild context required.", color=discord.Color.red())
+            await interaction.followup.send(embed=embed_err, ephemeral=True)
             return
 
         for member in guild.members:
             await self._apply_nickname(member)
 
-        await interaction.followup.send("✔️ Alle Nicknames aktualisiert.")
+        embed_ok = discord.Embed(description="✔️ Alle Nicknames aktualisiert.", color=discord.Color.green())
+        await interaction.followup.send(embed=embed_ok)
 
     # Listener to auto-update when role added/removed
 
