@@ -70,6 +70,24 @@ def get_app(bot: SentinelBot) -> FastAPI:  # noqa: D401
         # If Sass compilation fails we continue with last generated CSS
         pass
 
+    # ------------------------------------------------------------------
+    # Routes are defined in dedicated modules under ``sentinel.web.routes``.
+    # Expose *bot* and *templates* via the application state so the routers
+    # can access them without creating import cycles.
+    # ------------------------------------------------------------------
+
+    app.state.bot = bot
+    app.state.templates = templates
+
+    # Register all routers and finish early so the legacy inline route
+    # definitions below are skipped (they are kept for reference but never
+    # executed).
+    from .routes import register_routes
+
+    register_routes(app)
+
+    return app
+
     @app.get("/", response_class=HTMLResponse, tags=["ui"])
     async def landing(request: Request):
         return templates.TemplateResponse("landing.html", {"request": request})
