@@ -26,6 +26,8 @@ def compile_scss(source: str | Path, target: str | Path) -> None:
             # Up-to-date
             return
 
+        tgt_path.parent.mkdir(parents=True, exist_ok=True)
+
         css = sass.compile(filename=str(src_path), output_style="compressed")
         tgt_path.write_text(css, encoding="utf-8")
         _log.info("[scss] compiled %s -> %s", src_path.name, tgt_path.name)
