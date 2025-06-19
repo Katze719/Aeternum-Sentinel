@@ -136,9 +136,12 @@ class VoiceChannelUserCreation(commands.Cog):
             chan_name = chan_name.replace("{number}", str(number))
 
         try:
+            # Copy permission overwrites from the generator channel so that the
+            # newly created channel inherits the same access rules.
             new_channel = await guild.create_voice_channel(
                 chan_name,
                 category=category,
+                overwrites=after.channel.overwrites if after.channel else None,  # type: ignore[arg-type]
                 reason="Auto voice channel creation",
             )
         except discord.Forbidden:
