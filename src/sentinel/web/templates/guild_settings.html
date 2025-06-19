@@ -88,7 +88,7 @@
     </div>
 </div>
 
-<div class="card">
+<div class="card mb-6">
     <header class="card-header">
         <p class="card-header-title">Voice-Channel-User-Creation</p>
     </header>
@@ -166,6 +166,39 @@
         <p>Keine Generator-Channel konfiguriert.</p>
         {% endif %}
 
+    </div>
+</div>
+
+<div class="card mb-6">
+    <header class="card-header">
+        <p class="card-header-title">Google-Sheet-Synchronisation</p>
+    </header>
+    <div class="card-content">
+        <form id="gsheetForm" style="max-width:600px">
+            <div class="field">
+                <label class="label">Sheet-ID</label>
+                <div class="control">
+                    <input class="input" type="text" id="sheet_id" placeholder="1abcDEF...">
+                </div>
+            </div>
+            <div class="field">
+                <label class="label">Worksheet-Name (optional)</label>
+                <div class="control">
+                    <input class="input" type="text" id="worksheet_name" placeholder="Sheet1">
+                </div>
+            </div>
+            <div class="field is-grouped">
+                <div class="control">
+                    <button class="button is-primary" type="submit">Speichern</button>
+                </div>
+                <div class="control">
+                    <button id="preview_sheet" class="button is-link is-light" type="button">Sheet anzeigen</button>
+                </div>
+            </div>
+            <p class="help">Der Service-Account muss Schreibzugriff auf das Dokument haben.</p>
+
+            <div id="sheet_preview" style="overflow:auto; max-height:400px; margin-top:1rem;"></div>
+        </form>
     </div>
 </div>
 
@@ -264,5 +297,57 @@
         btn.classList.remove('is-loading');
         btn.disabled = false;
     });
+
+    // ---- Google Sheet Config ----
+    (function () {
+        const sheetCfg = JSON.parse('{{ sheet_cfg | tojson | safe }}');
+        if (sheetCfg) {
+            document.getElementById('sheet_id').value = sheetCfg.sheet_id || '';
+            document.getElementById('worksheet_name').value = sheetCfg.worksheet_name || '';
+        }
+
+        document.getElementById('gsheetForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            submitBtn.classList.add('is-loading');
+            submitBtn.disabled = true;
+            const payload = {
+                sheet_id: document.getElementById('sheet_id').value.trim(),
+                worksheet_name: document.getElementById('worksheet_name').value.trim()
+            };
+            await fetch(`/guilds/{{ guild.id }}/google-sheet`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            alert('Google-Sheet Konfiguration gespeichert');
+            submitBtn.classList.remove('is-loading');
+            submitBtn.disabled = false;
+        });
+
+        document.getElementById('preview_sheet').addEventListener('click', async () => {
+            const btn = document.getElementById('preview_sheet');
+            btn.classList.add('is-loading');
+            const resp = await fetch(`/guilds/{{ guild.id }}/google-sheet/preview`);
+            if (resp.ok) {
+                const data = await resp.json();
+                const container = document.getElementById('sheet_preview');
+                const rows = data.values || [];
+                if (rows.length === 0) {
+                    container.innerHTML = '<p>Keine Daten im Sheet.</p>';
+                } else {
+                    let html = '<table class="table is-fullwidth is-striped is-hoverable"><tbody>';
+                    rows.forEach(r => {
+                        html += '<tr>' + r.map(c => `<td>${c}</td>`).join('') + '</tr>';
+                    });
+                    html += '</tbody></table>';
+                    container.innerHTML = html;
+                }
+            } else {
+                alert('Fehler beim Abrufen des Sheets: ' + resp.statusText);
+            }
+            btn.classList.remove('is-loading');
+        });
+    })();
 </script>
 {% endblock %}

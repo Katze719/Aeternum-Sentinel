@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     # Database (optional)
     database_url: Optional[str] = None  # `DATABASE_URL`
 
+    # Google Sheets
+    google_credentials_path: Optional[str] = None  # `GOOGLE_CREDENTIALS_PATH`
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:  # pragma: no cover

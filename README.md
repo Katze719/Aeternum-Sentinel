@@ -38,6 +38,11 @@
 - ✅ Manage role-icons, voice-channel generators, command prefix & more.  
 - ✅ Health endpoint (`/health`) for orchestration.
 
+### 📊 Google-Sheets Sync
+* **Service-Account-basierte Authentifizierung** (kein OAuth-Flow nötig).  
+* Pro-Guild konfigurierbar über das Dashboard.  
+* Slash-Command `/sheet_sync` überträgt Mitglieder-Listen nach Google Sheets.
+
 ### 💾 Persistent Configuration
 - JSON per-guild files under `data/` — **no database needed**.
 
@@ -80,10 +85,17 @@ services:
       SSL_CERTFILE: "/certs/fullchain.pem"      # no default
       SSL_KEYFILE: "/certs/privkey.pem"        # no default
 
+      # === Google Sheets (optional) ===
+      # Absolute Pfad innerhalb des Containers zur Service-Account-JSON.
+      # Diese Datei muss *nicht* in der Web-UI eingegeben werden.
+      GOOGLE_CREDENTIALS_PATH: "/secrets/google.json"
+
     volumes:
       - ./data:/app/data
       # Mount directory that contains your certificate and key (paths must match above!)
       - ./certs:/certs:ro  # read-only mount for TLS assets
+      # Mount Service-Account-Key read-only:
+      - ./secrets/google.json:/secrets/google.json:ro
     ports:
       - "8000:8000"   # FastAPI web UI
 ```

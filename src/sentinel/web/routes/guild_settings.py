@@ -43,6 +43,8 @@ async def guild_settings(guild_id: int, request: Request):
     vcuc_cfg = cfg.get("voice_channel_user_creation_config", {})
     vcuc_enabled = cfg.get("voice_channel_user_creation_enabled", False)
 
+    sheet_cfg = cfg.get("google_sheet", {})
+
     voice_channel_names = {str(ch['id']): ch['name'] for ch in voice_channels}
     category_names = {str(cat['id']): cat['name'] for cat in categories}
 
@@ -63,5 +65,6 @@ async def guild_settings(guild_id: int, request: Request):
             "vcuc_enabled": vcuc_enabled,
             "voice_channel_names": voice_channel_names,
             "category_names": category_names,
+            "sheet_cfg": sheet_cfg,
         },
     ) 

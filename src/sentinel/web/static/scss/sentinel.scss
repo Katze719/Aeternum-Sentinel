@@ -84,9 +84,13 @@ body {
 }
 
 .title,
-.subtitle,
-label {
+.subtitle {
     color: $text-normal-color;
+}
+
+// Ensure Bulma .label (form labels) is readable on dark background
+.label {
+    color: $text-normal-color !important;
 }
 
 .full-center {
@@ -114,6 +118,11 @@ hr {
 textarea::placeholder {
     color: $placeholder-color;
     opacity: 1;
+}
+
+// Increase contrast for helper text below form controls
+.help {
+    color: lighten($placeholder-color, 20%);
 }
 
 // Choices.js dark styling overrides
