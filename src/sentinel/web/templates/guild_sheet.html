@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2 class="title is-3">Google-Sheet Einstellungen</h2>
+
+<div class="columns">
+    <div class="column is-one-third">
+        <div class="box">
+            <form id="gsheetForm">
+                <div class="field">
+                    <label class="label">Sheet-ID</label>
+                    <div class="control">
+                        <input class="input" type="text" id="sheet_id" placeholder="1abcDEF…">
+                    </div>
+                </div>
+                <div class="field">
+                    <label class="label">Worksheet-Name (optional)</label>
+                    <div class="control">
+                        <input class="input" type="text" id="worksheet_name" placeholder="Sheet1">
+                    </div>
+                </div>
+                <div class="field is-grouped">
+                    <div class="control">
+                        <button class="button is-primary" type="submit">Speichern</button>
+                    </div>
+                    <div class="control">
+                        <button id="reload" class="button is-link is-light" type="button">Neu laden</button>
+                    </div>
+                </div>
+                <p class="help">Service-Account JSON wird serverseitig über <code>GOOGLE_CREDENTIALS_PATH</code>
+                    gesetzt.</p>
+            </form>
+        </div>
+    </div>
+    <div class="column">
+        <div id="sheet_container" style="overflow:auto; max-height:75vh;"></div>
+    </div>
+</div>
+
+<script>
+    (function () {
+        const cfg = JSON.parse('{{ sheet_cfg | tojson | safe }}');
+        if (cfg) {
+            document.getElementById('sheet_id').value = cfg.sheet_id || '';
+            document.getElementById('worksheet_name').value = cfg.worksheet_name || '';
+        }
+
+        async function loadPreview() {
+            const cont = document.getElementById('sheet_container');
+            cont.innerHTML = '<p>Lade…</p>';
+            const resp = await fetch(`/guilds/{{ guild_id }}/google-sheet/preview`);
+            if (!resp.ok) {
+                cont.innerHTML = '<p class="has-text-danger">Fehler beim Abrufen: ' + resp.statusText + '</p>';
+                return;
+            }
+            const data = await resp.json();
+            const rows = data.values || [];
+            if (rows.length === 0) {
+                cont.innerHTML = '<p>Keine Daten vorhanden.</p>';
+                return;
+            }
+            const maxCols = Math.max(...rows.map(r => r.length));
+            const colLetter = n => { let s = ''; while (n >= 0) { s = String.fromCharCode((n % 26) + 65) + s; n = Math.floor(n / 26) - 1; } return s; };
+            let html = '<table class="table is-fullwidth sheet-preview"><thead><tr><th></th>';
+            for (let c = 0; c < maxCols; c++) { html += `<th>${colLetter(c)}</th>`; }
+            html += '</tr></thead><tbody>';
+            rows.forEach((row, idx) => {
+                html += `<tr><th>${idx + 1}</th>`;
+                for (let c = 0; c < maxCols; c++) { const val = row[c] ?? ''; html += `<td>${val}</td>`; }
+                html += '</tr>';
+            });
+            html += '</tbody></table>';
+            cont.innerHTML = html;
+        }
+
+        loadPreview();
+        document.getElementById('reload').addEventListener('click', loadPreview);
+
+        document.getElementById('gsheetForm').addEventListener('submit', async e => {
+            e.preventDefault();
+            const payload = {
+                sheet_id: document.getElementById('sheet_id').value.trim(),
+                worksheet_name: document.getElementById('worksheet_name').value.trim()
+            };
+            await fetch(`/guilds/{{ guild_id }}/google-sheet`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+            });
+            alert('Gespeichert');
+            loadPreview();
+        });
+    })();
+</script>
+{% endblock %}

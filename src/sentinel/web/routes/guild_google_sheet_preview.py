@@ -9,8 +9,8 @@ router = APIRouter(tags=["google-sheet"])
 
 
 @router.get("/guilds/{guild_id}/google-sheet/preview")
-async def preview_google_sheet(guild_id: int, request: Request, max_rows: int = 30):
-    """Return the first *max_rows* rows of the configured Google Sheet."""
+async def preview_google_sheet(guild_id: int, request: Request):
+    """Return all rows of the configured Google Sheet."""
 
     # Reuse existing admin check
     from .auth_utils import require_admin  # local import to avoid cycle
@@ -33,6 +33,5 @@ async def preview_google_sheet(guild_id: int, request: Request, max_rows: int = 
     ws = await ss.worksheet(worksheet_name) if worksheet_name else await ss.get_worksheet(0)
 
     values = await ws.get_all_values()
-    values = values[:max_rows]
 
-    return {"values": values} 
+    return {"values": values}

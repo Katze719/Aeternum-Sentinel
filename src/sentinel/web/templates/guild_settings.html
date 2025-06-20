@@ -192,12 +192,13 @@
                     <button class="button is-primary" type="submit">Speichern</button>
                 </div>
                 <div class="control">
-                    <button id="preview_sheet" class="button is-link is-light" type="button">Sheet anzeigen</button>
+                    <a href="/guilds/{{ guild.id }}/sheet" class="button is-link is-light">Sheet-Vorschau</a>
+                </div>
+                <div class="control">
+                    <button id="test_conn" class="button is-info is-light" type="button">Verbindung testen</button>
                 </div>
             </div>
-            <p class="help">Der Service-Account muss Schreibzugriff auf das Dokument haben.</p>
-
-            <div id="sheet_preview" style="overflow:auto; max-height:400px; margin-top:1rem;"></div>
+            <p class="help">Service-Account wird serverseitig gesetzt. Vorschau: Klick auf "Sheet-Vorschau".</p>
         </form>
     </div>
 </div>
@@ -324,30 +325,26 @@
             submitBtn.classList.remove('is-loading');
             submitBtn.disabled = false;
         });
-
-        document.getElementById('preview_sheet').addEventListener('click', async () => {
-            const btn = document.getElementById('preview_sheet');
-            btn.classList.add('is-loading');
-            const resp = await fetch(`/guilds/{{ guild.id }}/google-sheet/preview`);
-            if (resp.ok) {
-                const data = await resp.json();
-                const container = document.getElementById('sheet_preview');
-                const rows = data.values || [];
-                if (rows.length === 0) {
-                    container.innerHTML = '<p>Keine Daten im Sheet.</p>';
-                } else {
-                    let html = '<table class="table is-fullwidth is-striped is-hoverable"><tbody>';
-                    rows.forEach(r => {
-                        html += '<tr>' + r.map(c => `<td>${c}</td>`).join('') + '</tr>';
-                    });
-                    html += '</tbody></table>';
-                    container.innerHTML = html;
-                }
-            } else {
-                alert('Fehler beim Abrufen des Sheets: ' + resp.statusText);
-            }
-            btn.classList.remove('is-loading');
-        });
     })();
+
+    // Verbindung testen
+    document.getElementById('test_conn').addEventListener('click', async () => {
+        const btn = document.getElementById('test_conn');
+        btn.classList.add('is-loading');
+        btn.disabled = true;
+        try {
+            const resp = await fetch(`/guilds/{{ guild.id }}/google-sheet/test`, { method: 'POST' });
+            if (resp.ok) {
+                alert('✅ Verbindung erfolgreich.');
+            } else {
+                const data = await resp.json();
+                alert('❌ Fehler: ' + (data.detail || resp.statusText));
+            }
+        } catch (err) {
+            alert('❌ Netzwerkfehler: ' + err);
+        }
+        btn.classList.remove('is-loading');
+        btn.disabled = false;
+    });
 </script>
 {% endblock %}

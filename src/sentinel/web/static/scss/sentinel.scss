@@ -14,10 +14,15 @@ $text-light-color: #ffffff;
 $placeholder-color: #a0a0a0;
 $disabled-color: #777777;
 
+html {
+    background-color: $bg-dark-color;
+    min-height: 100vh;
+}
+
 body {
     background-color: $bg-dark-color;
     color: $text-normal-color;
-    height: 100vh;
+    min-height: 100vh;
 }
 
 .card {
@@ -187,4 +192,75 @@ textarea::placeholder {
 
 .choices__list--single {
     line-height: 1.5 !important;
+}
+
+// ------------------------------------------------------------------
+// Google-Sheet preview grid styling
+// ------------------------------------------------------------------
+
+.sheet-preview {
+    border-collapse: collapse;
+
+    th,
+    td {
+        border: 1px solid lighten($bg-elevated-color, 10%);
+        padding: 4px 6px;
+    }
+
+    thead th {
+        background-color: darken($bg-card-color, 5%);
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        font-weight: 600;
+    }
+
+    tbody th {
+        background-color: darken($bg-card-color, 5%);
+        color: $text-light-color;
+        position: sticky;
+        left: 0;
+        z-index: 1;
+        font-weight: 600;
+    }
+
+    tbody tr:nth-child(odd) td {
+        background-color: $bg-card-color;
+    }
+
+    tbody tr:nth-child(even) td {
+        background-color: $bg-elevated-color;
+    }
+}
+
+.box {
+    background-color: $bg-card-color;
+    color: $text-normal-color;
+    border: none;
+    border-radius: 8px;
+}
+
+// Light variants on dark background ------------------------------------------------
+.button.is-light {
+    background-color: lighten($bg-elevated-color, 8%) !important;
+    color: $text-normal-color !important;
+    border-color: $bg-elevated-color !important;
+
+    &:hover {
+        filter: brightness(1.15);
+    }
+}
+
+// Override Bulma light modifiers while keeping accent border for link/info
+.button.is-link.is-light,
+.button.is-info.is-light {
+    background-color: lighten($bg-elevated-color, 8%) !important;
+    color: $text-normal-color !important;
+}
+
+// Code blocks ---------------------------------------------------------------------
+code,
+pre {
+    background-color: $bg-elevated-color;
+    color: $text-normal-color;
 }
