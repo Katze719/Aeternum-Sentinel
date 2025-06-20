@@ -63,6 +63,16 @@ body {
     color: $text-normal-color;
 }
 
+.input[disabled],
+.select select:disabled,
+textarea[disabled] {
+    background-color: $bg-elevated-color !important;
+    border-color: $bg-card-color !important;
+    color: $disabled-color !important;
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
 .table {
     background-color: $bg-card-color;
     color: $text-normal-color;
@@ -200,6 +210,9 @@ textarea::placeholder {
 
 .sheet-preview {
     border-collapse: collapse;
+
+    width: max-content;
+    max-width: none;
 
     th,
     td {

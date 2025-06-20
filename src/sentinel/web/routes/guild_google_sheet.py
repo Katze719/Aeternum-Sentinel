@@ -24,7 +24,7 @@ async def get_google_sheet_config(guild_id: int, request: Request):
 async def set_google_sheet_config(
     guild_id: int,
     request: Request,
-    payload: dict = Body(..., description="Google sheet configuration (sheet_id, worksheet_name)") ,
+    payload: dict = Body(..., description="Google sheet configuration (sheet_id[, worksheet_name])") ,
 ):
     """Replace the entire Google-Sheet config for *guild_id* with *payload*."""
 
@@ -34,8 +34,8 @@ async def set_google_sheet_config(
         # The FastAPI validator should already cover this, but let's be safe.
         return {"error": "Invalid payload"}
 
-    if not payload.get("worksheet_name"):
-        raise HTTPException(status_code=400, detail="worksheet_name is required")
+    if not payload.get("sheet_id"):
+        raise HTTPException(status_code=400, detail="sheet_id is required")
 
     cfg = storage.load_guild_config(guild_id)
     sheet_cfg = cfg.get("google_sheet", {})

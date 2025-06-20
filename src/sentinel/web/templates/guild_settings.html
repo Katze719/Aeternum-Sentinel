@@ -181,12 +181,6 @@
                     <input class="input" type="text" id="sheet_id" placeholder="1abcDEF...">
                 </div>
             </div>
-            <div class="field">
-                <label class="label">Worksheet-Name (optional)</label>
-                <div class="control">
-                    <input class="input" type="text" id="worksheet_name" placeholder="Sheet1">
-                </div>
-            </div>
             <div class="field is-grouped">
                 <div class="control">
                     <button class="button is-primary" type="submit">Speichern</button>
@@ -304,7 +298,6 @@
         const sheetCfg = JSON.parse('{{ sheet_cfg | tojson | safe }}');
         if (sheetCfg) {
             document.getElementById('sheet_id').value = sheetCfg.sheet_id || '';
-            document.getElementById('worksheet_name').value = sheetCfg.worksheet_name || '';
         }
 
         document.getElementById('gsheetForm').addEventListener('submit', async (e) => {
@@ -313,8 +306,7 @@
             submitBtn.classList.add('is-loading');
             submitBtn.disabled = true;
             const payload = {
-                sheet_id: document.getElementById('sheet_id').value.trim(),
-                worksheet_name: document.getElementById('worksheet_name').value.trim()
+                sheet_id: document.getElementById('sheet_id').value.trim()
             };
             await fetch(`/guilds/{{ guild.id }}/google-sheet`, {
                 method: 'POST',
