@@ -59,7 +59,6 @@ docker compose up -d
 `docker-compose.yml` example (includes every available environment variable):
 
 ```yaml
-version: "3.8"
 services:
   sentinel:
     image: ghcr.io/katze719/aeternum-sentinel:latest
@@ -75,7 +74,7 @@ services:
       COMMAND_PREFIX: "!"                       # default "!"
       OAUTH_REDIRECT_URI: "http://localhost:8000/callback"  # default shown
 
-      # Web server
+      #===  Web server (defaults shown)
       HOST: "0.0.0.0"                           # default "0.0.0.0"
       PORT: "8000"                              # default 8000
 
