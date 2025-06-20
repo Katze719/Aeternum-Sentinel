@@ -264,3 +264,40 @@ pre {
     background-color: $bg-elevated-color;
     color: $text-normal-color;
 }
+
+// Context menu for sheet preview
+.sheet-context {
+    position: absolute;
+    background-color: $bg-elevated-color;
+    border: 1px solid $bg-card-color;
+    border-radius: 4px;
+    z-index: 1000;
+    min-width: 240px;
+
+    .dropdown-item {
+        display: block;
+        padding: 6px 10px;
+        color: $text-normal-color;
+        cursor: pointer;
+
+        &:hover {
+            background-color: $bg-card-color;
+        }
+    }
+}
+
+.sheet-preview td.cell-mapped {
+    background-color: rgba(red($accent-color), green($accent-color), blue($accent-color), 0.25) !important;
+}
+
+.sheet-preview td.cell-anchor {
+    background-color: $accent-color !important;
+    color: $bg-dark-color !important;
+    font-weight: 700;
+}
+
+.sheet-preview td:hover {
+    background-color: lighten($accent-color, 15%) !important;
+    color: $bg-dark-color !important;
+    cursor: pointer;
+}

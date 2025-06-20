@@ -69,6 +69,35 @@
                 html += '</tr>';
             });
             html += '</tbody></table>';
+
+            // Apply existing mapping highlight
+            if (cfg.username_mapping) {
+                const { row: mRow, col: mCol, direction: dir } = cfg.username_mapping;
+                const wrap = document.createElement('div');
+                wrap.innerHTML = html;
+                const tableEl = wrap.firstChild;
+                if (dir === 'vertical') {
+                    tableEl.querySelectorAll('tbody tr').forEach((tr, idx) => {
+                        if (idx < mRow) return; // start mapping from anchor row downward
+                        const td = tr.children[mCol + 1];
+                        if (td) td.classList.add('cell-mapped');
+                    });
+                } else {
+                    const targetTr = tableEl.querySelectorAll('tbody tr')[mRow];
+                    if (targetTr) {
+                        targetTr.querySelectorAll('td').forEach((td, idx) => {
+                            if (idx < mCol) return; // start from anchor col
+                            td.classList.add('cell-mapped');
+                        });
+                    }
+                }
+                // highlight anchor cell stronger
+                const anchorTd = tableEl.querySelectorAll('tbody tr')[mRow]?.children[mCol + 1];
+                if (anchorTd) anchorTd.classList.add('cell-anchor');
+
+                html = tableEl.outerHTML;
+            }
+
             cont.innerHTML = html;
         }
 
@@ -87,6 +116,42 @@
             alert('Gespeichert');
             loadPreview();
         });
+
+        // ----- Context menu for mapping -----------------------------
+        let ctxMenu;
+        function createMenu(x, y, cellRow, cellCol) {
+            if (ctxMenu) ctxMenu.remove();
+            ctxMenu = document.createElement('div');
+            ctxMenu.className = 'sheet-context dropdown-content';
+            ctxMenu.style.left = x + 'px';
+            ctxMenu.style.top = y + 'px';
+            ctxMenu.innerHTML = `
+                <a class="dropdown-item" data-dir="vertical">Als Nutzernamen (↓ vertikal)</a>
+                <a class="dropdown-item" data-dir="horizontal">Als Nutzernamen (→ horizontal)</a>`;
+            document.body.appendChild(ctxMenu);
+            ctxMenu.querySelectorAll('a').forEach(a => {
+                a.addEventListener('click', async () => {
+                    const dir = a.dataset.dir;
+                    if (ctxMenu) ctxMenu.remove();
+                    await fetch(`/guilds/{{ guild_id }}/google-sheet/username-mapping`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ row: cellRow, col: cellCol, direction: dir })
+                    });
+                    alert('Mapping gespeichert');
+                    location.reload();
+                });
+            });
+        }
+        document.addEventListener('contextmenu', e => {
+            if (!e.target.closest('#sheet_container td')) return;
+            e.preventDefault();
+            const td = e.target.closest('td');
+            const tr = td.parentElement;
+            const col = Array.from(tr.children).indexOf(td) - 1; // minus row header
+            const row = Array.from(tr.parentElement.children).indexOf(tr);
+            createMenu(e.pageX, e.pageY, row, col);
+        });
+        document.addEventListener('click', () => { if (ctxMenu) ctxMenu.remove(); });
     })();
 </script>
 {% endblock %}
