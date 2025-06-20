@@ -2,7 +2,7 @@ from __future__ import annotations
 
 """Google Sheet configuration endpoints for individual guilds."""
 
-from fastapi import APIRouter, Body, Request
+from fastapi import APIRouter, Body, Request, HTTPException
 
 import sentinel.utils.storage as storage
 
@@ -34,9 +34,15 @@ async def set_google_sheet_config(
         # The FastAPI validator should already cover this, but let's be safe.
         return {"error": "Invalid payload"}
 
+    if not payload.get("worksheet_name"):
+        raise HTTPException(status_code=400, detail="worksheet_name is required")
+
     cfg = storage.load_guild_config(guild_id)
+    sheet_cfg = cfg.get("google_sheet", {})
     # Only allow certain keys
     allowed = {k: v for k, v in payload.items() if k in ("sheet_id", "worksheet_name")}
-    cfg["google_sheet"] = allowed
+    # Preserve other keys (e.g., username_mappings)
+    sheet_cfg.update(allowed)
+    cfg["google_sheet"] = sheet_cfg
     storage.save_guild_config(guild_id, cfg)
     return {"status": "ok"} 

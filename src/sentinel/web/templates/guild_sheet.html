@@ -13,17 +13,16 @@
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label">Worksheet-Name (optional)</label>
+                    <label class="label">Worksheet</label>
                     <div class="control">
-                        <input class="input" type="text" id="worksheet_name" placeholder="Sheet1">
+                        <div class="select is-fullwidth">
+                            <select id="worksheet_name"></select>
+                        </div>
                     </div>
                 </div>
                 <div class="field is-grouped">
                     <div class="control">
-                        <button class="button is-primary" type="submit">Speichern</button>
-                    </div>
-                    <div class="control">
-                        <button id="reload" class="button is-link is-light" type="button">Neu laden</button>
+                        <button id="reload" class="button is-primary" type="button">Neu laden</button>
                     </div>
                 </div>
                 <p class="help">Service-Account JSON wird serverseitig über <code>GOOGLE_CREDENTIALS_PATH</code>
@@ -32,24 +31,87 @@
         </div>
     </div>
     <div class="column">
-        <div id="sheet_container" style="overflow:auto; max-height:75vh;"></div>
+        <div id="sheet_container" style="overflow:auto; max-height:75vh;">Lade Worksheets…</div>
     </div>
 </div>
 
 <script>
     (function () {
-        const cfg = JSON.parse('{{ sheet_cfg | tojson | safe }}');
-        if (cfg) {
-            document.getElementById('sheet_id').value = cfg.sheet_id || '';
-            document.getElementById('worksheet_name').value = cfg.worksheet_name || '';
+        async function fetchConfig() {
+            const resp = await fetch(`/guilds/{{ guild_id }}/google-sheet`);
+            if (!resp.ok) return {};
+            return await resp.json();
         }
+
+        // Pre-fill form with current config
+        (async () => {
+            const cfgInit = await fetchConfig();
+            if (cfgInit) {
+                document.getElementById('sheet_id').value = cfgInit.sheet_id || '';
+                window.__current_ws = cfgInit.worksheet_name || '';
+            }
+            await populateWorksheets();
+        })();
+
+        async function populateWorksheets() {
+            const sheetId = document.getElementById('sheet_id').value.trim();
+            const sel = document.getElementById('worksheet_name');
+
+            // Clear existing options
+            sel.innerHTML = '';
+
+            if (!sheetId) {
+                // No sheet ID – leave dropdown empty
+                return;
+            }
+
+            try {
+                const resp = await fetch(`/guilds/{{ guild_id }}/google-sheet/worksheets?sheet_id=${encodeURIComponent(sheetId)}`);
+                if (!resp.ok) throw new Error('Worksheet-Liste konnte nicht geladen werden');
+                const data = await resp.json();
+                const list = data.worksheets || [];
+                list.forEach(name => {
+                    const opt = document.createElement('option');
+                    opt.value = name;
+                    opt.textContent = name;
+                    sel.appendChild(opt);
+                });
+
+                // Restore previous selection if still available, else first item
+                const previous = window.__current_ws;
+                if (previous && list.includes(previous)) {
+                    sel.value = previous;
+                } else if (list.length > 0) {
+                    sel.value = list[0];
+                    window.__current_ws = sel.value;
+                }
+
+                // After populating, refresh preview
+                loadPreview();
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        // Fetch worksheet list whenever sheet-id changes
+        document.getElementById('sheet_id').addEventListener('change', populateWorksheets);
+        document.getElementById('sheet_id').addEventListener('blur', populateWorksheets);
 
         async function loadPreview() {
             const cont = document.getElementById('sheet_container');
-            cont.innerHTML = '<p>Lade…</p>';
-            const resp = await fetch(`/guilds/{{ guild_id }}/google-sheet/preview`);
+            const wsName = document.getElementById('worksheet_name').value.trim();
+            if (!wsName) {
+                cont.innerHTML = '<p class="has-text-danger">Bitte Worksheet-Name eingeben.</p>';
+                return;
+            }
+            const wsParam = encodeURIComponent(wsName);
+            const cfg = await fetchConfig();
+            cont.innerHTML = '<p>Lade Worksheet ' + wsName + '…</p>';
+            const resp = await fetch(`/guilds/{{ guild_id }}/google-sheet/preview?worksheet=${wsParam}`);
             if (!resp.ok) {
-                cont.innerHTML = '<p class="has-text-danger">Fehler beim Abrufen: ' + resp.statusText + '</p>';
+                let msg = resp.statusText;
+                try { const d = await resp.json(); if (d.detail) msg = d.detail; } catch (_) { }
+                cont.innerHTML = '<p class="has-text-danger">Fehler: ' + msg + '</p>';
                 return;
             }
             const data = await resp.json();
@@ -71,8 +133,10 @@
             html += '</tbody></table>';
 
             // Apply existing mapping highlight
-            if (cfg.username_mapping) {
-                const { row: mRow, col: mCol, direction: dir } = cfg.username_mapping;
+            const wsKey = document.getElementById('worksheet_name').value.trim() || '__default__';
+            const mappingObj = cfg.username_mappings ? cfg.username_mappings[wsKey] : null;
+            if (mappingObj) {
+                const { row: mRow, col: mCol, direction: dir } = mappingObj;
                 const wrap = document.createElement('div');
                 wrap.innerHTML = html;
                 const tableEl = wrap.firstChild;
@@ -101,19 +165,20 @@
             cont.innerHTML = html;
         }
 
-        loadPreview();
-        document.getElementById('reload').addEventListener('click', loadPreview);
-
-        document.getElementById('gsheetForm').addEventListener('submit', async e => {
-            e.preventDefault();
+        async function saveConfig() {
             const payload = {
                 sheet_id: document.getElementById('sheet_id').value.trim(),
                 worksheet_name: document.getElementById('worksheet_name').value.trim()
             };
+            if (!payload.sheet_id || !payload.worksheet_name) return;
             await fetch(`/guilds/{{ guild_id }}/google-sheet`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
             });
-            alert('Gespeichert');
+        }
+
+        // Reload button now only refreshes preview but ensures latest config is saved.
+        document.getElementById('reload').addEventListener('click', async () => {
+            await saveConfig();
             loadPreview();
         });
 
@@ -135,9 +200,8 @@
                     if (ctxMenu) ctxMenu.remove();
                     await fetch(`/guilds/{{ guild_id }}/google-sheet/username-mapping`, {
                         method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ row: cellRow, col: cellCol, direction: dir })
+                        body: JSON.stringify({ row: cellRow, col: cellCol, direction: dir, worksheet: document.getElementById('worksheet_name').value.trim() })
                     });
-                    alert('Mapping gespeichert');
                     location.reload();
                 });
             });
@@ -152,6 +216,16 @@
             createMenu(e.pageX, e.pageY, row, col);
         });
         document.addEventListener('click', () => { if (ctxMenu) ctxMenu.remove(); });
+
+        // Reload when worksheet name changes
+        document.getElementById('worksheet_name').addEventListener('change', async () => {
+            window.__current_ws = document.getElementById('worksheet_name').value;
+            await saveConfig();
+            loadPreview();
+        });
+
+        // Save config whenever sheet ID changes to keep backend in sync
+        document.getElementById('sheet_id').addEventListener('blur', saveConfig);
     })();
 </script>
 {% endblock %}
