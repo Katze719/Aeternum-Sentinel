@@ -86,8 +86,7 @@ services:
       SSL_KEYFILE: "/certs/privkey.pem"        # no default
 
       # === Google Sheets (optional) ===
-      # Absolute Pfad innerhalb des Containers zur Service-Account-JSON.
-      # Diese Datei muss *nicht* in der Web-UI eingegeben werden.
+      # Absolute path within the container to the service account JSON.
       GOOGLE_CREDENTIALS_PATH: "/secrets/google.json"
 
     volumes:
