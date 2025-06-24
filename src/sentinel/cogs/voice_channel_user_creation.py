@@ -8,7 +8,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 
-from sentinel.utils.storage import load_guild_config
+from sentinel.utils.storage import load_guild_config, save_guild_config
 
 _log = logging.getLogger(__name__)
 
@@ -41,7 +41,18 @@ class VoiceChannelUserCreation(commands.Cog):
         self._auto_channels.setdefault(guild_id, set()).add(channel_id)
 
     def _is_auto_channel(self, guild_id: int, channel_id: int) -> bool:
-        return channel_id in self._auto_channels.get(guild_id, set())
+        # Fast-path check in in-memory set first
+        if channel_id in self._auto_channels.get(guild_id, set()):
+            return True
+
+        # Fallback to on-disk config to support bot restarts
+        cfg = load_guild_config(guild_id)
+        chan_ids = cfg.get(self._PERSIST_KEY, [])
+        if channel_id in chan_ids:
+            # Lazily repopulate in-memory cache for faster future lookups
+            self._register_auto_channel(guild_id, channel_id)
+            return True
+        return False
 
     async def _cleanup_channel_if_empty(self, channel: discord.VoiceChannel):
         if channel.members:
@@ -52,10 +63,34 @@ class VoiceChannelUserCreation(commands.Cog):
         try:
             await channel.delete(reason="Cleaning up empty auto voice channel")
             self._auto_channels[guild_id].discard(channel.id)
+            self._persist_autochannel_remove(guild_id, channel.id)
         except discord.Forbidden:
             _log.warning("Missing permissions to delete voice channel %s (guild %s)", channel, guild_id)
         except discord.HTTPException as exc:
             _log.error("Failed to delete voice channel %s: %s", channel, exc)
+
+    # ------------------------------------------------------------------
+    # Persistent storage helpers
+    # ------------------------------------------------------------------
+
+    _PERSIST_KEY = "voice_channel_user_creation_autochannels"  # list[int]
+
+    def _persist_autochannel_add(self, guild_id: int, chan_id: int) -> None:
+        """Store a newly created auto-channel in the on-disk guild config."""
+        data = load_guild_config(guild_id)
+        ids = set(data.get(self._PERSIST_KEY, []))
+        ids.add(chan_id)
+        data[self._PERSIST_KEY] = list(ids)
+        save_guild_config(guild_id, data)
+
+    def _persist_autochannel_remove(self, guild_id: int, chan_id: int) -> None:
+        """Remove an auto-channel from the on-disk guild config (if present)."""
+        data = load_guild_config(guild_id)
+        if self._PERSIST_KEY in data:
+            ids = set(data[self._PERSIST_KEY])
+            ids.discard(chan_id)
+            data[self._PERSIST_KEY] = list(ids)
+            save_guild_config(guild_id, data)
 
     # ------------------------------------------------------------------
     # Listener
@@ -152,6 +187,7 @@ class VoiceChannelUserCreation(commands.Cog):
             return
 
         self._register_auto_channel(guild.id, new_channel.id)
+        self._persist_autochannel_add(guild.id, new_channel.id)
 
         try:
             await member.move_to(new_channel, reason="Moving to auto voice channel")
@@ -178,12 +214,17 @@ class VoiceChannelUserCreation(commands.Cog):
             return
 
         removed = 0
-        for chan_id in list(self._auto_channels.get(guild.id, set())):
+        # Combine in-memory and persisted IDs to ensure complete cleanup
+        persisted_ids = set(load_guild_config(guild.id).get(self._PERSIST_KEY, []))
+        candidate_ids = set(self._auto_channels.get(guild.id, set())) | persisted_ids
+
+        for chan_id in list(candidate_ids):
             channel = guild.get_channel(chan_id)
             if isinstance(channel, discord.VoiceChannel) and not channel.members:
                 try:
                     await channel.delete(reason="Manual cleanup via command")
                     self._auto_channels[guild.id].discard(chan_id)
+                    self._persist_autochannel_remove(guild.id, chan_id)
                     removed += 1
                 except discord.Forbidden:
                     pass
