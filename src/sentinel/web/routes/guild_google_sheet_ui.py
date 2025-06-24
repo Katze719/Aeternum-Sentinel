@@ -18,6 +18,17 @@ async def guild_sheet_page(guild_id: int, request: Request):
 
     cfg = load_guild_config(guild_id).get("google_sheet", {})
 
+    bot = request.app.state.bot
+    guild = bot.get_guild(guild_id)
+    if guild is None:
+        roles = []
+    else:
+        roles = [
+            {"id": r.id, "name": r.name}
+            for r in guild.roles
+            if not r.is_default()
+        ]
+
     templates = request.app.state.templates
     return templates.TemplateResponse(
         "guild_sheet.html",
@@ -25,5 +36,6 @@ async def guild_sheet_page(guild_id: int, request: Request):
             "request": request,
             "guild_id": guild_id,
             "sheet_cfg": cfg,
+            "roles": roles,
         },
     ) 

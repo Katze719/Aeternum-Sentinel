@@ -39,8 +39,9 @@ async def set_google_sheet_config(
 
     cfg = storage.load_guild_config(guild_id)
     sheet_cfg = cfg.get("google_sheet", {})
-    # Only allow certain keys
-    allowed = {k: v for k, v in payload.items() if k in ("sheet_id", "worksheet_name")}
+    # Accept additional optional keys for member filtering
+    allowed_keys = ("sheet_id", "worksheet_name", "member_scope", "role_ids")
+    allowed = {k: v for k, v in payload.items() if k in allowed_keys}
     # Preserve other keys (e.g., username_mappings)
     sheet_cfg.update(allowed)
     cfg["google_sheet"] = sheet_cfg

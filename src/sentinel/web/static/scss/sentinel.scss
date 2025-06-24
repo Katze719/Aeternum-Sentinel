@@ -218,6 +218,8 @@ textarea::placeholder {
     td {
         border: 1px solid lighten($bg-elevated-color, 10%);
         padding: 4px 6px;
+        min-width: 90px;
+        white-space: nowrap;
     }
 
     thead th {
@@ -313,4 +315,15 @@ pre {
     background-color: lighten($accent-color, 15%) !important;
     color: $bg-dark-color !important;
     cursor: pointer;
+}
+
+// ------------------------------------------------------------
+// Guild Sheet Page layout tweaks
+// ------------------------------------------------------------
+
+.sheet-page {
+    margin-left: -50vw !important;
+    margin-right: -50vw !important;
+    padding-left: 50vw !important;
+    padding-right: 50vw !important;
 }

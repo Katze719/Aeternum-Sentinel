@@ -1,231 +1,370 @@
 {% extends 'base.html' %}
 {% block content %}
-<h2 class="title is-3">Google-Sheet Einstellungen</h2>
+<div class="sheet-page">
+    <h2 class="title is-3">Google-Sheet Einstellungen</h2>
 
-<div class="columns">
-    <div class="column is-one-third">
-        <div class="box">
-            <form id="gsheetForm">
-                <div class="field">
-                    <label class="label">Sheet-ID</label>
-                    <div class="control">
-                        <input disabled class="input" type="text" id="sheet_id" placeholder="1abcDEF…">
-                    </div>
-                </div>
-                <div class="field">
-                    <label class="label">Worksheet</label>
-                    <div class="control">
-                        <div class="select is-fullwidth">
-                            <select id="worksheet_name"></select>
+    <div class="columns">
+        <div class="column is-one-third">
+            <div class="box">
+                <form id="gsheetForm">
+                    <div class="field">
+                        <label class="label">Sheet-ID</label>
+                        <div class="control">
+                            <input disabled class="input" type="text" id="sheet_id" placeholder="1abcDEF…">
                         </div>
                     </div>
-                </div>
-                <div class="field is-grouped">
-                    <div class="control">
-                        <button id="reload" class="button is-primary" type="button">Neu laden</button>
+                    <div class="field">
+                        <label class="label">Worksheet</label>
+                        <div class="control">
+                            <div class="select is-fullwidth">
+                                <select id="worksheet_name"></select>
+                            </div>
+                        </div>
                     </div>
-                </div>
-                <p class="help">Service-Account JSON wird serverseitig über <code>GOOGLE_CREDENTIALS_PATH</code>
-                    gesetzt.</p>
-            </form>
+                    <div class="field is-grouped">
+                        <div class="control">
+                            <button id="reload" class="button is-primary" type="button">Neu laden</button>
+                        </div>
+                    </div>
+                    <p class="help">Service-Account JSON wird serverseitig über <code>GOOGLE_CREDENTIALS_PATH</code>
+                        gesetzt.</p>
+                    <div id="member_settings_block" style="display:none;">
+                        <hr>
+                        <!-- Member selection settings -->
+                        <div class="field">
+                            <label class="label">Mitglied-Auswahl</label>
+                            <div class="control">
+                                <div class="select is-fullwidth">
+                                    <select id="member_scope">
+                                        <option value="all">Alle Mitglieder</option>
+                                        <option value="role">Nur Mitglieder mit Rolle</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="field" id="role_select_field" style="display:none;">
+                            <label class="label">Rollen</label>
+                            <div class="control">
+                                <div class="select is-fullwidth is-multiple">
+                                    <select id="role_ids" multiple size="6" data-choices>
+                                        {% if roles %}
+                                        {% for role in roles %}
+                                        <option value="{{ role.id }}">{{ role.name }}</option>
+                                        {% endfor %}
+                                        {% endif %}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <div class="column" style="min-width:0;">
+            <div id="sheet_container" style="overflow:auto; height:75vh;">Lade Worksheets…</div>
         </div>
     </div>
-    <div class="column" style="min-width:0;">
-        <div id="sheet_container" style="overflow:auto; max-height:75vh;">Lade Worksheets…</div>
-    </div>
-</div>
 
-<script>
-    (function () {
-        async function fetchConfig() {
-            const resp = await fetch(`/guilds/{{ guild_id }}/google-sheet`);
-            if (!resp.ok) return {};
-            return await resp.json();
-        }
-
-        // Pre-fill form with current config
-        (async () => {
-            const cfgInit = await fetchConfig();
-            if (cfgInit) {
-                document.getElementById('sheet_id').value = cfgInit.sheet_id || '';
-                window.__current_ws = cfgInit.worksheet_name || '';
-            }
-            await populateWorksheets();
-        })();
-
-        async function populateWorksheets() {
-            const sheetId = document.getElementById('sheet_id').value.trim();
-            const sel = document.getElementById('worksheet_name');
-
-            // Clear existing options
-            sel.innerHTML = '';
-
-            if (!sheetId) {
-                // No sheet ID – leave dropdown empty
-                return;
+    <script>
+        (function () {
+            async function fetchConfig() {
+                const resp = await fetch(`/guilds/{{ guild_id }}/google-sheet`);
+                if (!resp.ok) return {};
+                return await resp.json();
             }
 
-            try {
-                const resp = await fetch(`/guilds/{{ guild_id }}/google-sheet/worksheets?sheet_id=${encodeURIComponent(sheetId)}`);
-                if (!resp.ok) throw new Error('Worksheet-Liste konnte nicht geladen werden');
-                const data = await resp.json();
-                const list = data.worksheets || [];
-                list.forEach(name => {
-                    const opt = document.createElement('option');
-                    opt.value = name;
-                    opt.textContent = name;
-                    sel.appendChild(opt);
-                });
-
-                // Restore previous selection if still available, else first item
-                const previous = window.__current_ws;
-                if (previous && list.includes(previous)) {
-                    sel.value = previous;
-                } else if (list.length > 0) {
-                    sel.value = list[0];
-                    window.__current_ws = sel.value;
+            // Pre-fill form with current config
+            (async () => {
+                const cfgInit = await fetchConfig();
+                if (cfgInit) {
+                    document.getElementById('sheet_id').value = cfgInit.sheet_id || '';
+                    window.__current_ws = cfgInit.worksheet_name || '';
                 }
+                await populateWorksheets();
+            })();
 
-                // After populating, refresh preview
-                loadPreview();
-            } catch (err) {
-                console.error(err);
-            }
-        }
+            // --- Member selection logic (managed per worksheet) ---
+            const memberSettingsBlock = document.getElementById('member_settings_block');
+            const memberScopeEl = document.getElementById('member_scope');
+            const roleSelectField = document.getElementById('role_select_field');
+            const roleIdEl = document.getElementById('role_ids');
 
-        // Fetch worksheet list whenever sheet-id changes
-        document.getElementById('sheet_id').addEventListener('change', populateWorksheets);
-        document.getElementById('sheet_id').addEventListener('blur', populateWorksheets);
+            function toggleRoleField() {
+                if (!memberScopeEl || !roleSelectField) return;
+                roleSelectField.style.display = memberScopeEl.value === 'role' ? '' : 'none';
+            }
 
-        async function loadPreview() {
-            const cont = document.getElementById('sheet_container');
-            const wsName = document.getElementById('worksheet_name').value.trim();
-            if (!wsName) {
-                cont.innerHTML = '<p class="has-text-danger">Bitte Worksheet-Name eingeben.</p>';
-                return;
-            }
-            const wsParam = encodeURIComponent(wsName);
-            const cfg = await fetchConfig();
-            cont.innerHTML = '<p>Lade Worksheet ' + wsName + '…</p>';
-            const resp = await fetch(`/guilds/{{ guild_id }}/google-sheet/preview?worksheet=${wsParam}`);
-            if (!resp.ok) {
-                let msg = resp.statusText;
-                try { const d = await resp.json(); if (d.detail) msg = d.detail; } catch (_) { }
-                cont.innerHTML = '<p class="has-text-danger">Fehler: ' + msg + '</p>';
-                return;
-            }
-            const data = await resp.json();
-            const rows = data.values || [];
-            if (rows.length === 0) {
-                cont.innerHTML = '<p>Keine Daten vorhanden.</p>';
-                return;
-            }
-            const maxCols = Math.max(...rows.map(r => r.length));
-            const colLetter = n => { let s = ''; while (n >= 0) { s = String.fromCharCode((n % 26) + 65) + s; n = Math.floor(n / 26) - 1; } return s; };
-            let html = '<table class="table is-fullwidth sheet-preview"><thead><tr><th></th>';
-            for (let c = 0; c < maxCols; c++) { html += `<th>${colLetter(c)}</th>`; }
-            html += '</tr></thead><tbody>';
-            rows.forEach((row, idx) => {
-                html += `<tr><th>${idx + 1}</th>`;
-                for (let c = 0; c < maxCols; c++) { const val = row[c] ?? ''; html += `<td>${val}</td>`; }
-                html += '</tr>';
-            });
-            html += '</tbody></table>';
-
-            // Apply existing mapping highlight
-            const wsKey = document.getElementById('worksheet_name').value.trim() || '__default__';
-            const mappingObj = cfg.username_mappings ? cfg.username_mappings[wsKey] : null;
-            if (mappingObj) {
-                const { row: mRow, col: mCol, direction: dir } = mappingObj;
-                const wrap = document.createElement('div');
-                wrap.innerHTML = html;
-                const tableEl = wrap.firstChild;
-                if (dir === 'vertical') {
-                    tableEl.querySelectorAll('tbody tr').forEach((tr, idx) => {
-                        if (idx < mRow) return; // start mapping from anchor row downward
-                        const td = tr.children[mCol + 1];
-                        if (td) td.classList.add('cell-mapped');
-                    });
-                } else {
-                    const targetTr = tableEl.querySelectorAll('tbody tr')[mRow];
-                    if (targetTr) {
-                        targetTr.querySelectorAll('td').forEach((td, idx) => {
-                            if (idx < mCol) return; // start from anchor col
-                            td.classList.add('cell-mapped');
+            function applyMemberSettings(mappingObj) {
+                if (!memberSettingsBlock) return;
+                if (mappingObj) {
+                    memberSettingsBlock.style.display = '';
+                    if (memberScopeEl) {
+                        memberScopeEl.value = mappingObj.member_scope || 'all';
+                    }
+                    if (roleIdEl) {
+                        const ids = mappingObj.role_ids || [];
+                        Array.from(roleIdEl.options).forEach(opt => {
+                            opt.selected = ids.includes(opt.value);
                         });
                     }
+                    toggleRoleField();
+                } else {
+                    memberSettingsBlock.style.display = 'none';
                 }
-                // highlight anchor cell stronger
-                const anchorTd = tableEl.querySelectorAll('tbody tr')[mRow]?.children[mCol + 1];
-                if (anchorTd) anchorTd.classList.add('cell-anchor');
-
-                html = tableEl.outerHTML;
             }
 
-            cont.innerHTML = html;
-        }
+            if (memberScopeEl) {
+                memberScopeEl.addEventListener('change', async () => {
+                    toggleRoleField();
+                    await saveConfig();
+                });
+            }
 
-        async function saveConfig() {
-            const payload = {
-                sheet_id: document.getElementById('sheet_id').value.trim(),
-                worksheet_name: document.getElementById('worksheet_name').value.trim()
-            };
-            if (!payload.sheet_id || !payload.worksheet_name) return;
-            await fetch(`/guilds/{{ guild_id }}/google-sheet`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+            if (roleIdEl) {
+                roleIdEl.addEventListener('change', saveConfig);
+            }
+
+            async function populateWorksheets() {
+                const sheetId = document.getElementById('sheet_id').value.trim();
+                const sel = document.getElementById('worksheet_name');
+
+                // Clear existing options
+                sel.innerHTML = '';
+
+                if (!sheetId) {
+                    // No sheet ID – leave dropdown empty
+                    return;
+                }
+
+                try {
+                    const resp = await fetch(`/guilds/{{ guild_id }}/google-sheet/worksheets?sheet_id=${encodeURIComponent(sheetId)}`);
+                    if (!resp.ok) throw new Error('Worksheet-Liste konnte nicht geladen werden');
+                    const data = await resp.json();
+                    const list = data.worksheets || [];
+                    list.forEach(name => {
+                        const opt = document.createElement('option');
+                        opt.value = name;
+                        opt.textContent = name;
+                        sel.appendChild(opt);
+                    });
+
+                    // Restore previous selection if still available, else first item
+                    const previous = window.__current_ws;
+                    if (previous && list.includes(previous)) {
+                        sel.value = previous;
+                    } else if (list.length > 0) {
+                        sel.value = list[0];
+                        window.__current_ws = sel.value;
+                    }
+
+                    // After populating, refresh preview
+                    loadPreview();
+                } catch (err) {
+                    console.error(err);
+                }
+            }
+
+            // Fetch worksheet list whenever sheet-id changes
+            document.getElementById('sheet_id').addEventListener('change', populateWorksheets);
+            document.getElementById('sheet_id').addEventListener('blur', populateWorksheets);
+
+            async function loadPreview() {
+                const cont = document.getElementById('sheet_container');
+                const wsName = document.getElementById('worksheet_name').value.trim();
+                if (!wsName) {
+                    cont.innerHTML = '<p class="has-text-danger">Bitte Worksheet-Name eingeben.</p>';
+                    return;
+                }
+                const wsParam = encodeURIComponent(wsName);
+                const cfg = await fetchConfig();
+                cont.innerHTML = '<p>Lade Worksheet ' + wsName + '…</p>';
+                const resp = await fetch(`/guilds/{{ guild_id }}/google-sheet/preview?worksheet=${wsParam}`);
+                if (!resp.ok) {
+                    let msg = resp.statusText;
+                    try { const d = await resp.json(); if (d.detail) msg = d.detail; } catch (_) { }
+                    cont.innerHTML = '<p class="has-text-danger">Fehler: ' + msg + '</p>';
+                    return;
+                }
+                const data = await resp.json();
+                const rows = data.values || [];
+                if (rows.length === 0) {
+                    cont.innerHTML = '<p>Keine Daten vorhanden.</p>';
+                    return;
+                }
+                const MIN_COLS = 10;
+                const MIN_ROWS = 15;
+                const maxColsData = Math.max(...rows.map(r => r.length));
+                const totalCols = Math.max(maxColsData, MIN_COLS);
+                const colLetter = n => { let s = ''; while (n >= 0) { s = String.fromCharCode((n % 26) + 65) + s; n = Math.floor(n / 26) - 1; } return s; };
+                let html = '<table class="table is-fullwidth sheet-preview"><thead><tr><th></th>';
+                for (let c = 0; c < totalCols; c++) { html += `<th>${colLetter(c)}</th>`; }
+                html += '</tr></thead><tbody>';
+
+                // Ensure at least MIN_ROWS rows
+                while (rows.length < MIN_ROWS) rows.push([]);
+
+                rows.forEach((row, idx) => {
+                    html += `<tr><th>${idx + 1}</th>`;
+                    for (let c = 0; c < totalCols; c++) { const val = row[c] ?? ''; html += `<td>${val}</td>`; }
+                    html += '</tr>';
+                });
+                html += '</tbody></table>';
+
+                // Apply existing mapping highlight
+                const wsKey = document.getElementById('worksheet_name').value.trim() || '__default__';
+                const mappingObj = cfg.username_mappings ? cfg.username_mappings[wsKey] : null;
+                // Expose globally for context menu logic
+                window.__current_mapping = mappingObj;
+                applyMemberSettings(mappingObj);
+
+                if (mappingObj) {
+                    const { row: mRow, col: mCol, direction: dir } = mappingObj;
+                    const anchorRowIdx = mRow - 1; // convert back to 0-based
+                    const wrap = document.createElement('div');
+                    wrap.innerHTML = html;
+                    const tableEl = wrap.firstChild;
+                    if (dir === 'vertical') {
+                        tableEl.querySelectorAll('tbody tr').forEach((tr, idx) => {
+                            if (idx < anchorRowIdx) return; // start mapping from anchor row downward
+                            const td = tr.children[mCol + 1];
+                            if (td) td.classList.add('cell-mapped');
+                        });
+                    } else {
+                        const targetTr = tableEl.querySelectorAll('tbody tr')[anchorRowIdx];
+                        if (targetTr) {
+                            targetTr.querySelectorAll('td').forEach((td, idx) => {
+                                if (idx < mCol) return; // start from anchor col
+                                td.classList.add('cell-mapped');
+                            });
+                        }
+                    }
+                    // highlight anchor cell stronger
+                    const anchorTd = tableEl.querySelectorAll('tbody tr')[anchorRowIdx]?.children[mCol + 1];
+                    if (anchorTd) anchorTd.classList.add('cell-anchor');
+
+                    html = tableEl.outerHTML;
+                }
+
+                cont.innerHTML = html;
+            }
+
+            async function saveConfig() {
+                const payload = {
+                    sheet_id: document.getElementById('sheet_id').value.trim(),
+                    worksheet_name: document.getElementById('worksheet_name').value.trim()
+                };
+
+                let memberPayload = null;
+                if (memberSettingsBlock && memberSettingsBlock.style.display !== 'none' && memberScopeEl) {
+                    memberPayload = {
+                        worksheet: document.getElementById('worksheet_name').value.trim(),
+                        member_scope: memberScopeEl.value,
+                    };
+                    if (memberPayload.member_scope === 'role') {
+                        const roleIds = roleIdEl ? Array.from(roleIdEl.selectedOptions).map(o => o.value) : [];
+                        memberPayload.role_ids = roleIds;
+                        if (roleIds.length === 0) {
+                            return;
+                        }
+                    }
+                }
+
+                if (!payload.sheet_id || !payload.worksheet_name) return;
+                // Keep existing endpoint for sheet_id updates (no harm if values unchanged)
+                await fetch(`/guilds/{{ guild_id }}/google-sheet`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+                });
+
+                if (memberPayload) {
+                    await fetch(`/guilds/{{ guild_id }}/google-sheet/username-mapping-settings`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(memberPayload)
+                    });
+                }
+            }
+
+            // Reload button now only refreshes preview but ensures latest config is saved.
+            document.getElementById('reload').addEventListener('click', async () => {
+                await saveConfig();
+                loadPreview();
             });
-        }
 
-        // Reload button now only refreshes preview but ensures latest config is saved.
-        document.getElementById('reload').addEventListener('click', async () => {
-            await saveConfig();
-            loadPreview();
-        });
+            // ----- Context menu for mapping -----------------------------
+            let ctxMenu;
+            function createMenu(x, y, cellRow, cellCol) {
+                if (ctxMenu) ctxMenu.remove();
+                ctxMenu = document.createElement('div');
+                ctxMenu.className = 'sheet-context dropdown-content';
+                ctxMenu.style.left = x + 'px';
+                ctxMenu.style.top = y + 'px';
 
-        // ----- Context menu for mapping -----------------------------
-        let ctxMenu;
-        function createMenu(x, y, cellRow, cellCol) {
-            if (ctxMenu) ctxMenu.remove();
-            ctxMenu = document.createElement('div');
-            ctxMenu.className = 'sheet-context dropdown-content';
-            ctxMenu.style.left = x + 'px';
-            ctxMenu.style.top = y + 'px';
-            ctxMenu.innerHTML = `
+                let html = `
                 <a class="dropdown-item" data-dir="vertical">Als Nutzernamen (↓ vertikal)</a>
                 <a class="dropdown-item" data-dir="horizontal">Als Nutzernamen (→ horizontal)</a>`;
-            document.body.appendChild(ctxMenu);
-            ctxMenu.querySelectorAll('a').forEach(a => {
-                a.addEventListener('click', async () => {
+
+                // If current cell is anchor of existing mapping → offer remove option
+                if (window.__current_mapping && window.__current_mapping.row === cellRow + 1 && window.__current_mapping.col === cellCol) {
+                    html += `<hr class="dropdown-divider"><a class="dropdown-item" data-action="remove">Mapping entfernen</a>`;
+                }
+
+                ctxMenu.innerHTML = html;
+                document.body.appendChild(ctxMenu);
+
+                ctxMenu.querySelectorAll('a').forEach(a => {
                     const dir = a.dataset.dir;
-                    if (ctxMenu) ctxMenu.remove();
-                    await fetch(`/guilds/{{ guild_id }}/google-sheet/username-mapping`, {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ row: cellRow, col: cellCol, direction: dir, worksheet: document.getElementById('worksheet_name').value.trim() })
+                    const action = a.dataset.action;
+                    a.addEventListener('click', async () => {
+                        if (ctxMenu) ctxMenu.remove();
+                        const worksheetVal = document.getElementById('worksheet_name').value.trim();
+                        if (action === 'remove') {
+                            await fetch(`/guilds/{{ guild_id }}/google-sheet/username-mapping/${encodeURIComponent(worksheetVal)}`, {
+                                method: 'DELETE'
+                            });
+                            location.reload();
+                            return;
+                        }
+                        // Otherwise create mapping
+                        await fetch(`/guilds/{{ guild_id }}/google-sheet/username-mapping`, {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ row: cellRow + 1, col: cellCol, direction: dir, worksheet: worksheetVal })
+                        });
+                        location.reload();
                     });
-                    location.reload();
                 });
+            }
+            document.addEventListener('contextmenu', e => {
+                if (!e.target.closest('#sheet_container td')) return;
+                e.preventDefault();
+                const td = e.target.closest('td');
+                const tr = td.parentElement;
+                const col = Array.from(tr.children).indexOf(td) - 1; // minus row header
+                const row = Array.from(tr.parentElement.children).indexOf(tr);
+                createMenu(e.pageX, e.pageY, row, col);
             });
-        }
-        document.addEventListener('contextmenu', e => {
-            if (!e.target.closest('#sheet_container td')) return;
-            e.preventDefault();
-            const td = e.target.closest('td');
-            const tr = td.parentElement;
-            const col = Array.from(tr.children).indexOf(td) - 1; // minus row header
-            const row = Array.from(tr.parentElement.children).indexOf(tr);
-            createMenu(e.pageX, e.pageY, row, col);
-        });
-        document.addEventListener('click', () => { if (ctxMenu) ctxMenu.remove(); });
+            document.addEventListener('click', () => { if (ctxMenu) ctxMenu.remove(); });
 
-        // Reload when worksheet name changes
-        document.getElementById('worksheet_name').addEventListener('change', async () => {
-            window.__current_ws = document.getElementById('worksheet_name').value;
-            await saveConfig();
-            loadPreview();
-        });
+            // Persist worksheet selection without touching member mapping settings
+            async function saveWorksheetSelection() {
+                const payload = {
+                    sheet_id: document.getElementById('sheet_id').value.trim(),
+                    worksheet_name: document.getElementById('worksheet_name').value.trim()
+                };
+                if (!payload.sheet_id || !payload.worksheet_name) return;
+                await fetch(`/guilds/{{ guild_id }}/google-sheet`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+                });
+            }
 
-        // Save config whenever sheet ID changes to keep backend in sync
-        document.getElementById('sheet_id').addEventListener('blur', saveConfig);
-    })();
-</script>
+            // Reload when worksheet name changes (but avoid copying member settings)
+            document.getElementById('worksheet_name').addEventListener('change', async () => {
+                window.__current_ws = document.getElementById('worksheet_name').value;
+                await saveWorksheetSelection();
+                loadPreview();
+            });
+
+            // Save config whenever sheet ID changes to keep backend in sync
+            document.getElementById('sheet_id').addEventListener('blur', saveConfig);
+        })();
+    </script>
+</div> <!-- .sheet-page -->
 {% endblock %}
