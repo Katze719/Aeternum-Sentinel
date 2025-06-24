@@ -1,6 +1,5 @@
 from discord.ext import commands
 import discord
-from discord import app_commands
 
 
 class Review(commands.Cog):
@@ -9,11 +8,11 @@ class Review(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @app_commands.command(
+    @commands.hybrid_command(
         name="review",
         description="Starte eine Review-Anfrage an den Nutzer.",
     )
-    async def review(self, interaction: discord.Interaction):  # noqa: D401
+    async def review(self, ctx: commands.Context):  # noqa: D401
         """Send a visible message with review questions (placeholder)."""
 
         embed = discord.Embed(
@@ -27,7 +26,7 @@ class Review(commands.Cog):
             color=discord.Color.blurple(),
         )
         # Send publicly visible message (not ephemeral)
-        await interaction.response.send_message(embed=embed)
+        await ctx.send(embed=embed)
 
 
 async def setup(bot: commands.Bot):
