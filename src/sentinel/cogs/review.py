@@ -20,7 +20,9 @@ class Review(commands.Cog):
             title="📝 Review",
             description=(
                 "Hier muss björn fragen einfügen.\n\n"
-                "*(Hier könnte ihre werbung stehen)*"
+                "*(Leillith sloten!)\n\n"
+                "*(Hier könnte ihre werbung stehen)\n\n"
+                "GOAT Telefonsex 0190….*"
             ),
             color=discord.Color.blurple(),
         )
