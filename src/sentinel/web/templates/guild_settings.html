@@ -197,6 +197,30 @@
     </div>
 </div>
 
+<div class="card mb-6">
+    <header class="card-header">
+        <p class="card-header-title">Review-Nachricht</p>
+    </header>
+    <div class="card-content">
+        <form id="reviewMsgForm" style="max-width:600px">
+            <div class="field">
+                <label class="label">
+                    Text, der vom <code>/review</code>-Befehl gesendet wird (<code>!review</code>)
+                </label>
+                <div class="control">
+                    <textarea class="textarea" id="review_message" rows="4" placeholder="Nachricht"
+                        required>{{ review_message }}</textarea>
+                </div>
+            </div>
+            <div class="field">
+                <div class="control">
+                    <button class="button is-primary" type="submit">Speichern</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
     async function deleteIcon(btn, roleId) {
         btn.classList.add('is-loading');
@@ -337,6 +361,23 @@
         }
         btn.classList.remove('is-loading');
         btn.disabled = false;
+    });
+
+    // ---- Review Message Config ----
+    document.getElementById('reviewMsgForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        submitBtn.classList.add('is-loading');
+        submitBtn.disabled = true;
+        const message = document.getElementById('review_message').value.trim();
+        await fetch(`/guilds/{{ guild.id }}/review-message`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message })
+        });
+        alert('Review-Nachricht gespeichert');
+        submitBtn.classList.remove('is-loading');
+        submitBtn.disabled = false;
     });
 </script>
 {% endblock %}

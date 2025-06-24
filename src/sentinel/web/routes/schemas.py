@@ -6,6 +6,7 @@ __all__ = [
     "NameFormatPayload",
     "TogglePayload",
     "VoiceAutoConfigPayload",
+    "ReviewMessagePayload",
 ]
 
 
@@ -31,3 +32,7 @@ class VoiceAutoConfigPayload(BaseModel):
     generator_channel_id: str
     target_category_id: str
     name_pattern: str | None = "{username}" 
+
+
+class ReviewMessagePayload(BaseModel):
+    message: str 
