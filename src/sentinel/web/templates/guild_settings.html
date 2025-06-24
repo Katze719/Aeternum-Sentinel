@@ -221,6 +221,30 @@
     </div>
 </div>
 
+<div class="card mb-6">
+    <header class="card-header">
+        <p class="card-header-title">VOD Formular-Link</p>
+    </header>
+    <div class="card-content">
+        <form id="vodLinkForm" style="max-width:600px">
+            <div class="field">
+                <label class="label">
+                    Google-Formular-Link, der per <code>/vod</code> (!vod) gesendet wird
+                </label>
+                <div class="control">
+                    <input class="input" type="url" id="vod_link" placeholder="https://docs.google.com/forms/..."
+                        value="{{ vod_link }}" required>
+                </div>
+            </div>
+            <div class="field">
+                <div class="control">
+                    <button class="button is-primary" type="submit">Speichern</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
     async function deleteIcon(btn, roleId) {
         btn.classList.add('is-loading');
@@ -376,6 +400,23 @@
             body: JSON.stringify({ message })
         });
         alert('Review-Nachricht gespeichert');
+        submitBtn.classList.remove('is-loading');
+        submitBtn.disabled = false;
+    });
+
+    // ---- VOD Link Config ----
+    document.getElementById('vodLinkForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        submitBtn.classList.add('is-loading');
+        submitBtn.disabled = true;
+        const linkVal = document.getElementById('vod_link').value.trim();
+        await fetch(`/guilds/{{ guild.id }}/vod-link`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ link: linkVal })
+        });
+        alert('VOD-Link gespeichert');
         submitBtn.classList.remove('is-loading');
         submitBtn.disabled = false;
     });

@@ -7,6 +7,7 @@ __all__ = [
     "TogglePayload",
     "VoiceAutoConfigPayload",
     "ReviewMessagePayload",
+    "VodLinkPayload",
 ]
 
 
@@ -36,3 +37,7 @@ class VoiceAutoConfigPayload(BaseModel):
 
 class ReviewMessagePayload(BaseModel):
     message: str 
+
+
+class VodLinkPayload(BaseModel):
+    link: str 
