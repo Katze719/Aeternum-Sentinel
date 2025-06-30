@@ -115,9 +115,20 @@
             }
 
             if (memberScopeEl) {
-                memberScopeEl.addEventListener('change', async () => {
-                    toggleRoleField();
-                    await saveConfig();
+                memberScopeEl.addEventListener('change', () => {
+                    // Beim Wechsel zu "role": Rollen deselektieren, aber noch NICHT speichern –
+                    // erst nach tatsächlicher Rollenauswahl.
+                    if (memberScopeEl.value === 'role') {
+                        if (roleIdEl) {
+                            Array.from(roleIdEl.options).forEach(opt => { opt.selected = false; });
+                        }
+                        toggleRoleField();
+                        // kein saveConfig hier
+                    } else {
+                        // Wechsel zu "all" → sofort speichern
+                        toggleRoleField();
+                        saveConfig();
+                    }
                 });
             }
 
@@ -263,9 +274,18 @@
                     };
                     if (memberPayload.member_scope === 'role') {
                         const roleIds = roleIdEl ? Array.from(roleIdEl.selectedOptions).map(o => o.value) : [];
-                        memberPayload.role_ids = roleIds;
                         if (roleIds.length === 0) {
-                            return;
+                            if (window.__current_mapping && window.__current_mapping.member_scope === 'role' && (window.__current_mapping.role_ids ?? []).length > 0) {
+                                memberPayload.member_scope = 'all';
+                                if (memberScopeEl) {
+                                    memberScopeEl.value = 'all';
+                                    toggleRoleField();
+                                }
+                            } else {
+                                memberPayload = null;
+                            }
+                        } else {
+                            memberPayload.role_ids = roleIds;
                         }
                     }
                 }

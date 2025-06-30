@@ -167,6 +167,14 @@ textarea::placeholder {
         color: $disabled-color !important;
     }
 
+    // Mark selected options with a check-mark but keep them visible in the list
+    .choices__item.is-selected::after {
+        content: "\2713"; // ✓
+        float: right;
+        color: $accent-color;
+        font-weight: 700;
+    }
+
     // Search field inside dropdown
     .choices__input {
         background-color: $bg-elevated-color !important;

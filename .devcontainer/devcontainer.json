@@ -2,9 +2,6 @@
     "build": {
         "dockerfile": "./Dockerfile.dev"
     },
-    "forwardPorts": [
-        8000
-    ],
     "customizations": {
         "vscode": {
             "extensions": [

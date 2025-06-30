@@ -50,4 +50,4 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:  # pragma: no cover
     """Return a cached Settings instance to avoid re-parsing env vars."""
 
-    return Settings() 
+    return Settings()  # type: ignore
