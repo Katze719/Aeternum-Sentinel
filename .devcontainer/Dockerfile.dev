@@ -1,4 +1,4 @@
-FROM python:3.10
+FROM python:3.12
 
 # Installiere benötigte Pakete für OpenCV & Tesseract OCR
 RUN apt-get update && apt-get install -y \
@@ -12,11 +12,7 @@ RUN apt-get update && apt-get install -y \
     libxext6 \
     libxrender-dev \
     libsm6 \
-    libffi-dev \
-    libnacl-dev \
-    python3-dev \
     ffmpeg \
-    git-lfs \
     locales \
     fonts-dejavu \
     fonts-noto-color-emoji \

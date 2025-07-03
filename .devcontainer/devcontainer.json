@@ -3,7 +3,7 @@
         "dockerfile": "./Dockerfile.dev"
     },
     "forwardPorts": [
-        8081
+        8000
     ],
     "customizations": {
         "vscode": {

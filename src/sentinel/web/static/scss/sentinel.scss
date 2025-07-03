@@ -1,0 +1,190 @@
+@charset "utf-8";
+
+/* ---------------- Sentinel Dark Theme (SCSS) ---------------- */
+
+// Color palette variables
+$bg-dark-color: #2f3136;
+$bg-card-color: #36393f;
+$bg-elevated-color: #202225;
+$text-normal-color: #dcddde;
+$accent-color: #ff4f4f;
+
+// Additional color variables
+$text-light-color: #ffffff;
+$placeholder-color: #a0a0a0;
+$disabled-color: #777777;
+
+body {
+    background-color: $bg-dark-color;
+    color: $text-normal-color;
+    height: 100vh;
+}
+
+.card {
+    background-color: $bg-card-color;
+    color: $text-normal-color;
+    border: none;
+    border-radius: 8px;
+}
+
+.navbar,
+.footer {
+    background-color: $bg-elevated-color;
+}
+
+.button {
+
+    &.is-primary,
+    &.is-link,
+    &.is-info {
+        background-color: $accent-color;
+        border-color: $accent-color;
+        color: $text-light-color;
+
+        &:hover {
+            filter: brightness(1.1);
+        }
+    }
+}
+
+.switch.is-info input:checked+.check {
+    background-color: $accent-color;
+}
+
+.input,
+.select select {
+    background-color: $bg-elevated-color;
+    border-color: $bg-card-color;
+    color: $text-normal-color;
+}
+
+.table {
+    background-color: $bg-card-color;
+    color: $text-normal-color;
+
+    thead th {
+        background-color: $bg-card-color;
+        color: $text-normal-color;
+        border-bottom-color: $bg-elevated-color;
+    }
+
+    &.is-striped tbody tr:nth-child(odd) {
+        background-color: $bg-elevated-color;
+    }
+
+    &.is-striped tbody tr:not(.is-selected):nth-child(even) {
+        background-color: $bg-card-color;
+    }
+
+    &.is-striped tbody tr:not(.is-selected):hover,
+    &.is-striped.is-hoverable tbody tr:not(.is-selected):hover,
+    &.is-hoverable tbody tr:not(.is-selected):hover {
+        background-color: $bg-card-color !important;
+    }
+}
+
+.title,
+.subtitle {
+    color: $text-normal-color;
+}
+
+// Ensure Bulma .label (form labels) is readable on dark background
+.label {
+    color: $text-normal-color !important;
+}
+
+.full-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+}
+
+hr {
+    background-color: $bg-elevated-color;
+}
+
+.card-header {
+    background-color: $bg-elevated-color;
+    border: none;
+
+    .card-header-title {
+        color: $text-normal-color;
+    }
+}
+
+.input::placeholder,
+textarea::placeholder {
+    color: $placeholder-color;
+    opacity: 1;
+}
+
+// Increase contrast for helper text below form controls
+.help {
+    color: lighten($placeholder-color, 20%);
+}
+
+// Choices.js dark styling overrides
+.choices__inner,
+.choices__list--dropdown,
+.choices__list[role="listbox"] {
+    background-color: $bg-elevated-color !important;
+    color: $text-normal-color !important;
+    border-color: $bg-card-color !important;
+}
+
+.choices__list--dropdown {
+    background-color: $bg-elevated-color !important;
+    border-color: $bg-card-color !important;
+
+    .choices__item,
+    .choices__item--selectable {
+        background-color: $bg-elevated-color !important;
+        color: $text-normal-color !important;
+
+        &.is-highlighted {
+            background-color: $bg-card-color !important;
+        }
+    }
+
+    .choices__item--disabled {
+        color: $disabled-color !important;
+    }
+
+    // Search field inside dropdown
+    .choices__input {
+        background-color: $bg-elevated-color !important;
+        color: $text-normal-color !important;
+        border-color: $bg-card-color !important;
+
+        &::placeholder {
+            color: $placeholder-color !important;
+        }
+    }
+}
+
+// Selected single-select control
+.choices[data-type*="select-one"] {
+    min-width: 340px !important;
+
+    .choices__inner {
+        background-color: $bg-elevated-color !important;
+        border-color: $bg-card-color !important;
+        color: $text-normal-color !important;
+        min-height: calc(2.25em + .125em + 2px) !important;
+        padding: calc(0.375em - 1px) calc(0.625em - 1px) !important;
+        display: flex !important;
+        align-items: center !important;
+        border-radius: 4px !important;
+        box-sizing: border-box !important;
+    }
+
+    &::after {
+        border-color: $text-normal-color transparent transparent !important;
+    }
+}
+
+.choices__list--single {
+    line-height: 1.5 !important;
+}
