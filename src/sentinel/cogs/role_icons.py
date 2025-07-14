@@ -32,15 +32,71 @@ class RoleIcons(commands.Cog):
         return [entry["emoji"] for entry in sorted(icons, key=lambda e: e.get("priority", 0))]
 
     def _format_name(self, username: str, emojis: List[str], fmt: str) -> str:
-        return fmt.replace("{username}", username).replace("{icons}", "".join(emojis))
+        """Replace placeholders in *fmt* and tidy up if no *emojis* are present.
+
+        Besides the simple placeholder replacement we perform an additional cleanup
+        step: if *emojis* is empty we remove any left-over punctuation or whitespace
+        which might have surrounded the ``{icons}`` placeholder (e.g. "[ ]", "()",
+        or simple trailing spaces). This prevents artefacts such as an empty pair
+        of brackets ("[]") or a dangling space from remaining in the nickname when
+        the icon list is empty.
+        """
+
+        # First perform the raw replacement.
+        rendered = fmt.replace("{username}", username).replace("{icons}", "".join(emojis))
+
+        # If there are no emojis we may have to strip left-over characters that
+        # were intended to wrap the icons (e.g. " []", " ()", " {}") or superfluous
+        # whitespace. We only run this expensive regex cleanup if *emojis* is empty
+        # because otherwise we want to keep the surrounding delimiters.
+        if not emojis:
+            # 1) Remove common wrapping patterns that ended up empty, optionally
+            #    preceded by whitespace.  Examples that should vanish:
+            #       " []", "()", " \u200B[]" …
+            rendered = re.sub(r"\s*([\[\(\{])\s*[\]\)\}]\s*", "", rendered)
+
+            # 2) Remove dangling separators like '|', '-', ':' etc. that remain
+            #    at the *end* of the nickname once the icons are gone.
+            rendered = re.sub(r"\s*[\|\-–—~•:;>+]+\s*$", "", rendered)
+
+            # 3) Collapse multiple consecutive whitespace characters and trim.
+            rendered = re.sub(r"\s{2,}", " ", rendered).strip()
+
+        return rendered
 
     @staticmethod
     def _build_regex(fmt: str) -> re.Pattern:
-        pattern = (
-            re.escape(fmt)
-            .replace(r"\{username\}", r"(?P<name>.+?)")
-            .replace(r"\{icons\}", r".*")
-        )
+        """Build a regex that extracts the *base* username from an already
+        formatted nickname.
+
+        The resulting pattern always contains a named capturing group ``name`` for
+        the username.  If the supplied *fmt* still contains an ``{icons}``
+        placeholder we replace it with a greedy ``.*``.  If it no longer contains
+        that placeholder (because the guild owner removed it) we nevertheless
+        allow an *optional* trailing icon segment so that we can clean up stale
+        icons that might still be present in old nicknames.
+        """
+
+        has_icons_placeholder = "{icons}" in fmt
+
+        # Use NON-greedy capture when we *expect* an icon segment afterwards, but
+        # greedy capture when the segment is optional – otherwise we would only
+        # grab the first word of multi-part names ("Tim Hubert" → "Tim").
+        name_group = r"(?P<name>.+?)" if has_icons_placeholder else r"(?P<name>.+)"
+
+        pattern = re.escape(fmt).replace(r"\{username\}", name_group)
+
+        if has_icons_placeholder:
+            # The format still includes the placeholder ⇒ direct substitution.
+            pattern = pattern.replace(r"\{icons\}", r".*")
+        else:
+            # No placeholder anymore ⇒ treat a trailing icon part as *optional*.
+            # Typical historic patterns have icons at the end, separated by a
+            # space and maybe wrapped in brackets.  We therefore allow either:
+            #   " <anything>"           – space followed by icons
+            #   " [<anything>]"         – space + icons wrapped in []
+            pattern += r"(?:\s*\[.*\]|\s+.*)?"
+
         return re.compile(f"^{pattern}$")
 
     async def _apply_nickname(self, member: discord.Member):
@@ -63,7 +119,7 @@ class RoleIcons(commands.Cog):
         # Determine base username from current display_name to avoid double application
         regex = self._build_regex(fmt)
         match = regex.match(member.display_name)
-        base_username = match.group("name") if match else member.display_name
+        base_username = match.group("name").strip() if match else member.display_name.strip()
 
         new_nick = self._format_name(base_username, emojis, fmt)
 
@@ -106,11 +162,17 @@ class RoleIcons(commands.Cog):
 
 
 def build_regex(fmt: str) -> re.Pattern:
-    pattern = (
-        re.escape(fmt)
-        .replace(r'\{username\}', r'(?P<name>.+?)')
-        .replace(r'\{icons\}', r'.*')          # Icons dürfen alles sein
-    )
+    # Keep behaviour in sync with RoleIcons._build_regex
+    has_icons_placeholder = '{icons}' in fmt
+    name_group = r'(?P<name>.+?)' if has_icons_placeholder else r'(?P<name>.+)'
+
+    pattern = re.escape(fmt).replace(r'\{username\}', name_group)
+
+    if has_icons_placeholder:
+        pattern = pattern.replace(r'\{icons\}', r'.*')
+    else:
+        pattern += r'(?:\s*\[.*\]|\s+.*)?'
+
     return re.compile(f'^{pattern}$')
 
 
