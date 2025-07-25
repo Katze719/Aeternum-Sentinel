@@ -237,12 +237,16 @@ class GoogleSheetsSync(commands.Cog):
         if row_anchor is None or col_anchor is None:
             # No mapping defined → nothing to update
             return
+
+        # Lade das Worksheet nur EINMAL für alle Operationen
+        all_values = await ws.get_all_values()
+        
         # Build list of usernames (display names)
         names = [m.display_name for m in target_members]
+        
         # --------------------------------------------------
         # Fetch existing names to compute longest length
         # --------------------------------------------------
-        all_values = await ws.get_all_values()
         existing_names: List[str] = []
         if direction == "vertical":
             # Iterate from anchor downward until first empty cell
@@ -266,16 +270,45 @@ class GoogleSheetsSync(commands.Cog):
                         c += 1
                     else:
                         break
+        
         max_len = max(len(names), len(existing_names))
+        
+        # --------------------------------------------------
+        # Username Mapping: Nur Diffs aktualisieren
+        # --------------------------------------------------
+        username_updates = []  # (cell_range, new_value)
+        
         if direction == "vertical":
-            values = [[n] for n in names] + [[""]] * (max_len - len(names))
+            # Vertikales Mapping: Jede Zeile ist ein Name
+            for i, name in enumerate(names):
+                cell_range = f"{col_to_letter(col_anchor)}{row_anchor + i}"
+                # Prüfe, ob sich der Wert geändert hat
+                if i < len(existing_names) and existing_names[i] == name:
+                    continue  # Keine Änderung
+                username_updates.append((cell_range, [[name]]))
+            
+            # Lösche überschüssige Zeilen, falls weniger Namen als vorher
+            if len(names) < len(existing_names):
+                for i in range(len(names), len(existing_names)):
+                    cell_range = f"{col_to_letter(col_anchor)}{row_anchor + i}"
+                    username_updates.append((cell_range, [[""]]))
         else:
-            pad = [""] * (max_len - len(names))
-            values = [names + pad]
-        try:
-            await ws.update(values, f"{col_to_letter(col_anchor)}{row_anchor}")
-        except Exception:
-            _log.exception("Failed updating worksheet for guild %s", guild.id)
+            # Horizontales Mapping: Alle Namen in einer Zeile
+            current_row = existing_names if existing_names else [""] * max_len
+            new_row = names + [""] * (max_len - len(names))
+            
+            # Prüfe, ob sich die Zeile geändert hat
+            if current_row != new_row:
+                cell_range = f"{col_to_letter(col_anchor)}{row_anchor}:{col_to_letter(col_anchor + max_len - 1)}{row_anchor}"
+                username_updates.append((cell_range, [new_row]))
+        
+        # Führe Username-Updates aus (nur wenn Änderungen vorhanden)
+        if username_updates:
+            try:
+                for cell_range, value in username_updates:
+                    await ws.update(value, cell_range)
+            except Exception:
+                _log.exception("Failed updating username mapping for guild %s", guild.id)
 
         # --------------------------------------------------
         # Regelspalten: mapping_columns aus der Config auswerten und eintragen
@@ -327,14 +360,21 @@ class GoogleSheetsSync(commands.Cog):
             while len(header_row) <= max_index:
                 header_row.append("")
             
-            # Aktualisiere all_values mit der erweiterten Header-Zeile
+            # Aktualisiere all_values mit der erweiterten Header-Zeile (nur wenn nötig)
+            header_changed = False
             if row_anchor - 1 < len(all_values):
-                all_values[row_anchor - 1] = header_row
+                if all_values[row_anchor - 1] != header_row:
+                    all_values[row_anchor - 1] = header_row
+                    header_changed = True
             else:
                 # Füge Header-Zeile hinzu, falls sie nicht existiert
                 while len(all_values) < row_anchor - 1:
                     all_values.append([""] * len(header_row))
                 all_values.append(header_row)
+                header_changed = True
+            
+            # Sammle Regelspalten-Updates (nur Diffs)
+            rule_updates = []  # (cell_range, new_value)
             
             # Für jede Zeile (Member) die Regelspalten füllen
             for i, m in enumerate(target_members):
@@ -350,6 +390,9 @@ class GoogleSheetsSync(commands.Cog):
                 while len(row) <= max_index:
                     row.append("")
                 
+                # Sammle Änderungen für diese Zeile
+                row_changes = []
+                
                 for col in mapping_columns:
                     idx = col["_computed_index"]
                     rules = col.get("rules", [])
@@ -363,16 +406,16 @@ class GoogleSheetsSync(commands.Cog):
                         if has_role:
                             matching_rules.append(rule)
                     
-                    # Bestimme den Wert basierend auf dem Verhalten
-                    applied_value = ""
+                    # Bestimme den neuen Wert basierend auf dem Verhalten
+                    new_value = ""
                     if matching_rules:
                         if behavior == "first":
                             # Erste passende Regel verwenden
                             rule = matching_rules[0]
                             if rule.get("mode") == "truefalse":
-                                applied_value = "true"
+                                new_value = "true"
                             elif rule.get("mode") == "string":
-                                applied_value = rule.get("value", "")
+                                new_value = rule.get("value", "")
                         elif behavior == "combine":
                             # Alle Werte mit Komma trennen
                             values = []
@@ -383,36 +426,34 @@ class GoogleSheetsSync(commands.Cog):
                                     value = rule.get("value", "")
                                     if value and value not in values:  # Duplikate vermeiden
                                         values.append(value)
-                            applied_value = ", ".join(values)
+                            new_value = ", ".join(values)
                     
-                    # Setze den Wert (leer, falls keine Regel passt)
-                    row[idx] = applied_value
+                    # Prüfe, ob sich der Wert geändert hat
+                    current_value = row[idx] if idx < len(row) else ""
+                    if current_value != new_value:
+                        row_changes.append((idx, new_value))
+                        row[idx] = new_value  # Update in all_values für zukünftige Vergleiche
+                
+                # Erstelle Update für diese Zeile (nur wenn Änderungen vorhanden)
+                if row_changes:
+                    # Sortiere nach Spaltenindex für konsistente Updates
+                    row_changes.sort(key=lambda x: x[0])
+                    
+                    # Erstelle Range für die geänderten Zellen
+                    min_col = min(idx for idx, _ in row_changes)
+                    max_col = max(idx for idx, _ in row_changes)
+                    
+                    # Extrahiere nur die geänderten Werte
+                    changed_values = [row[idx] for idx in range(min_col, max_col + 1)]
+                    
+                    cell_range = f"{col_to_letter(min_col)}{row_idx + 1}:{col_to_letter(max_col)}{row_idx + 1}"
+                    rule_updates.append((cell_range, [changed_values]))
             
-            # Schreibe alle aktualisierten Werte zurück (komplette Zeilen)
-            # Verwende die korrekte Range basierend auf der tatsächlichen Datenstruktur
-            start_row = row_anchor - 1
-            end_row = start_row + max_len
-            
-            # Stelle sicher, dass wir nicht über die verfügbaren Daten hinausgehen
-            if end_row > len(all_values):
-                end_row = len(all_values)
-            
-            # Bereite die Update-Daten vor
-            update_values = []
-            for row_idx in range(start_row, end_row):
-                if row_idx < len(all_values):
-                    row_data = all_values[row_idx]
-                    # Stelle sicher, dass jede Zeile die gleiche Länge hat
-                    while len(row_data) <= max_index:
-                        row_data.append("")
-                    update_values.append(row_data[:max_index + 1])  # Nur die relevanten Spalten
-            
-            if update_values:
+            # Führe Regelspalten-Updates aus (nur wenn Änderungen vorhanden)
+            if rule_updates:
                 try:
-                    # Update der kompletten Range
-                    start_cell = f"A{row_anchor}"
-                    end_cell = f"{col_to_letter(max_index)}{end_row}"
-                    await ws.update(update_values, f"{start_cell}:{end_cell}")
+                    for cell_range, value in rule_updates:
+                        await ws.update(value, cell_range)
                 except Exception:
                     _log.exception("Failed updating Regelspalten for guild %s", guild.id)
 
