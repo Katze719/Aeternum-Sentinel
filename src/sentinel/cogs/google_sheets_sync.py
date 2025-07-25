@@ -104,8 +104,8 @@ class GoogleSheetsSync(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_update(self, before: discord.Member, after: discord.Member):
-        # schedule if roles changed
-        if set(before.roles) != set(after.roles):
+        # schedule if roles changed or display name changed
+        if set(before.roles) != set(after.roles) or before.display_name != after.display_name:
             await self._schedule_sync(after.guild)
 
     # --------------------------------------------------------------
