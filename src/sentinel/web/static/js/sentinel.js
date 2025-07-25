@@ -1,5 +1,8 @@
 import { showToast, toastTypes } from './show_toast.js';
 
+window.showToast = showToast;
+window.toastTypes = toastTypes;
+
 document.addEventListener('DOMContentLoaded', () => {
     // Toast handling
     const params = new URLSearchParams(window.location.search);

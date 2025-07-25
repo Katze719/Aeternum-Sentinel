@@ -281,7 +281,7 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name_format: fmt })
         });
-        alert('Format gespeichert');
+        window.showToast('Format gespeichert', window.toastTypes.INFO);
         submitBtn.classList.remove('is-loading');
         submitBtn.disabled = false;
     });
@@ -336,7 +336,7 @@
         btn.classList.add('is-loading');
         btn.disabled = true;
         await fetch(`/guilds/{{ guild.id }}/apply-role-icons`, { method: 'POST' });
-        alert('Alle Nicknames wurden aktualisiert');
+        window.showToast('Alle Nicknames wurden aktualisiert', window.toastTypes.INFO);
         btn.classList.remove('is-loading');
         btn.disabled = false;
     });
@@ -361,7 +361,7 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
-            alert('Google-Sheet Konfiguration gespeichert');
+            window.showToast('Google-Sheet Konfiguration gespeichert', window.toastTypes.INFO);
             submitBtn.classList.remove('is-loading');
             submitBtn.disabled = false;
         });
@@ -375,13 +375,13 @@
         try {
             const resp = await fetch(`/guilds/{{ guild.id }}/google-sheet/test`, { method: 'POST' });
             if (resp.ok) {
-                alert('✅ Verbindung erfolgreich.');
+                window.showToast('✅ Verbindung erfolgreich.', window.toastTypes.INFO);
             } else {
                 const data = await resp.json();
-                alert('❌ Fehler: ' + (data.detail || resp.statusText));
+                window.showToast('❌ Fehler: ' + (data.detail || resp.statusText), window.toastTypes.ERROR);
             }
         } catch (err) {
-            alert('❌ Netzwerkfehler: ' + err);
+            window.showToast('❌ Netzwerkfehler: ' + err, window.toastTypes.ERROR);
         }
         btn.classList.remove('is-loading');
         btn.disabled = false;
@@ -399,7 +399,7 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ message })
         });
-        alert('Review-Nachricht gespeichert');
+        window.showToast('Review-Nachricht gespeichert', window.toastTypes.INFO);
         submitBtn.classList.remove('is-loading');
         submitBtn.disabled = false;
     });
@@ -416,7 +416,7 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ link: linkVal })
         });
-        alert('VOD-Link gespeichert');
+        window.showToast('VOD-Link gespeichert', window.toastTypes.INFO);
         submitBtn.classList.remove('is-loading');
         submitBtn.disabled = false;
     });

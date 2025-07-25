@@ -8,7 +8,7 @@
             <div class="box">
                 <form id="gsheetForm">
                     <div class="field">
-                        <label class="label">Sheet-ID</label>
+                        <label class="label">Sheet-ID <span id="sheet_title" class="has-text-grey"></span></label>
                         <div class="control">
                             <input disabled class="input" type="text" id="sheet_id" placeholder="1abcDEF…">
                         </div>
@@ -145,6 +145,7 @@
 
                 if (!sheetId) {
                     // No sheet ID – leave dropdown empty
+                    document.getElementById('sheet_title').textContent = '';
                     return;
                 }
 
@@ -153,6 +154,8 @@
                     if (!resp.ok) throw new Error('Worksheet-Liste konnte nicht geladen werden');
                     const data = await resp.json();
                     const list = data.worksheets || [];
+                    // Show sheet title
+                    document.getElementById('sheet_title').textContent = data.title ? `(${data.title})` : '';
                     list.forEach(name => {
                         const opt = document.createElement('option');
                         opt.value = name;

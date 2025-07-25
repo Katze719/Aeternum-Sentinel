@@ -32,7 +32,8 @@ async def list_worksheets(guild_id: int, request: Request, sheet_id: str | None 
         ss = await agc.open_by_key(sheet_id)
         worksheets = await ss.worksheets()
         names = [ws.title for ws in worksheets]
+        title = ss.title
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
-    return {"worksheets": names} 
+    return {"worksheets": names, "title": title} 
