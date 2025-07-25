@@ -159,13 +159,13 @@ class GoogleSheetsSync(commands.Cog):
             current_ids.add(str(m.id))
             if str(m.id) in mapping:
                 row_idx, old_row = mapping[str(m.id)]
-                # Update username, display_name, last_seen, status
+                # Update username, display_name, last_seen nur wenn status geändert hat
                 new_row = [
                     str(m.id),
                     m.name,
                     m.display_name,
                     old_row[3] if len(old_row) > 3 and old_row[3] else now,  # joined_at bleibt
-                    now,
+                    old_row[4] if len(old_row) > 4 and old_row[4] else now,  # last_seen bleibt unverändert für aktive Member
                     "active",
                 ]
                 updates.append((row_idx, new_row))
@@ -176,7 +176,7 @@ class GoogleSheetsSync(commands.Cog):
                     m.name,
                     m.display_name,
                     now,
-                    now,
+                    now,  # last_seen für neue Member
                     "active",
                 ]
                 updates.append((None, new_row))
@@ -184,11 +184,11 @@ class GoogleSheetsSync(commands.Cog):
         # Markiere alle, die nicht mehr Member sind, als left
         for did, (row_idx, old_row) in mapping.items():
             if did not in current_ids and (len(old_row) < 6 or old_row[5] != "left"):
-                # Setze status auf left, update last_seen
+                # Setze status auf left, update last_seen nur beim Verlassen
                 new_row = list(old_row)
                 while len(new_row) < len(mapping_headers):
                     new_row.append("")
-                new_row[4] = now  # last_seen
+                new_row[4] = now  # last_seen nur beim Verlassen
                 new_row[5] = "left"
                 updates.append((row_idx, new_row))
 
