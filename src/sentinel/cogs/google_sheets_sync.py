@@ -277,6 +277,145 @@ class GoogleSheetsSync(commands.Cog):
         except Exception:
             _log.exception("Failed updating worksheet for guild %s", guild.id)
 
+        # --------------------------------------------------
+        # Regelspalten: mapping_columns aus der Config auswerten und eintragen
+        # --------------------------------------------------
+        mapping_columns_cfg = cfg.get("mapping_columns", {})
+        mapping_columns = mapping_columns_cfg.get(worksheet_name_in_cfg, [])
+        if mapping_columns:
+            # Hole Header-Zeile und stelle sicher, dass sie vollständig ist
+            header_row = all_values[row_anchor - 1] if row_anchor - 1 < len(all_values) else []
+            
+            # Map: Spaltenname -> Index (case-insensitive)
+            col_name_to_idx = {name.lower().strip(): idx for idx, name in enumerate(header_row) if name.strip()}
+            
+            # Für jede Regelspalte den korrekten Index finden und Migration durchführen
+            for col in mapping_columns:
+                col_name = col["name"].strip()
+                col_name_lower = col_name.lower()
+                
+                # Migration: Altes Format (mode, value, roles direkt) in neues Format (rules Array) konvertieren
+                if "mode" in col and "rules" not in col:
+                    # Altes Format → neues Format
+                    old_rule = {
+                        "mode": col["mode"],
+                        "value": col.get("value", ""),
+                        "roles": col.get("roles", [])
+                    }
+                    col["rules"] = [old_rule]
+                    # Entferne alte Felder
+                    col.pop("mode", None)
+                    col.pop("value", None)
+                    col.pop("roles", None)
+                
+                # Prüfe, ob es ein einzelner Buchstabe ist (A, B, C, etc.)
+                if len(col_name) == 1 and col_name.upper() in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ':
+                    # Konvertiere Buchstabe zu Spaltenindex (A=0, B=1, C=2, etc.)
+                    col_index = ord(col_name.upper()) - ord('A')
+                    col["_computed_index"] = col_index
+                else:
+                    # Suche nach dem Namen in der Header-Zeile
+                    if col_name_lower in col_name_to_idx:
+                        col["_computed_index"] = col_name_to_idx[col_name_lower]
+                    else:
+                        # Fallback: Füge am Ende hinzu
+                        col["_computed_index"] = len(header_row)
+                        header_row.append(col["name"])
+            
+            # Stelle sicher, dass die Header-Zeile lang genug ist
+            max_index = max(col["_computed_index"] for col in mapping_columns) if mapping_columns else 0
+            while len(header_row) <= max_index:
+                header_row.append("")
+            
+            # Aktualisiere all_values mit der erweiterten Header-Zeile
+            if row_anchor - 1 < len(all_values):
+                all_values[row_anchor - 1] = header_row
+            else:
+                # Füge Header-Zeile hinzu, falls sie nicht existiert
+                while len(all_values) < row_anchor - 1:
+                    all_values.append([""] * len(header_row))
+                all_values.append(header_row)
+            
+            # Für jede Zeile (Member) die Regelspalten füllen
+            for i, m in enumerate(target_members):
+                # Zeile im Sheet (bei vertical: row_anchor + i)
+                row_idx = row_anchor - 1 + i if direction == "vertical" else row_anchor - 1
+                
+                # Stelle sicher, dass die Zeile existiert und lang genug ist
+                while row_idx >= len(all_values):
+                    all_values.append([""] * len(header_row))
+                
+                row = all_values[row_idx]
+                # Stelle sicher, dass Zeile lang genug ist
+                while len(row) <= max_index:
+                    row.append("")
+                
+                for col in mapping_columns:
+                    idx = col["_computed_index"]
+                    rules = col.get("rules", [])
+                    behavior = col.get("behavior", "first")  # Default: erste Regel verwenden
+                    
+                    # Finde alle passenden Regeln
+                    matching_rules = []
+                    for rule in rules:
+                        # Prüfe, ob Member eine der Rollen aus dieser Regel hat
+                        has_role = any(str(r.id) in rule.get("roles", []) for r in m.roles)
+                        if has_role:
+                            matching_rules.append(rule)
+                    
+                    # Bestimme den Wert basierend auf dem Verhalten
+                    applied_value = ""
+                    if matching_rules:
+                        if behavior == "first":
+                            # Erste passende Regel verwenden
+                            rule = matching_rules[0]
+                            if rule.get("mode") == "truefalse":
+                                applied_value = "true"
+                            elif rule.get("mode") == "string":
+                                applied_value = rule.get("value", "")
+                        elif behavior == "combine":
+                            # Alle Werte mit Komma trennen
+                            values = []
+                            for rule in matching_rules:
+                                if rule.get("mode") == "truefalse":
+                                    values.append("true")
+                                elif rule.get("mode") == "string":
+                                    value = rule.get("value", "")
+                                    if value and value not in values:  # Duplikate vermeiden
+                                        values.append(value)
+                            applied_value = ", ".join(values)
+                    
+                    # Setze den Wert (leer, falls keine Regel passt)
+                    row[idx] = applied_value
+            
+            # Schreibe alle aktualisierten Werte zurück (komplette Zeilen)
+            # Verwende die korrekte Range basierend auf der tatsächlichen Datenstruktur
+            start_row = row_anchor - 1
+            end_row = start_row + max_len
+            
+            # Stelle sicher, dass wir nicht über die verfügbaren Daten hinausgehen
+            if end_row > len(all_values):
+                end_row = len(all_values)
+            
+            # Bereite die Update-Daten vor
+            update_values = []
+            for row_idx in range(start_row, end_row):
+                if row_idx < len(all_values):
+                    row_data = all_values[row_idx]
+                    # Stelle sicher, dass jede Zeile die gleiche Länge hat
+                    while len(row_data) <= max_index:
+                        row_data.append("")
+                    update_values.append(row_data[:max_index + 1])  # Nur die relevanten Spalten
+            
+            if update_values:
+                try:
+                    # Update der kompletten Range
+                    start_cell = f"A{row_anchor}"
+                    end_cell = f"{col_to_letter(max_index)}{end_row}"
+                    await ws.update(update_values, f"{start_cell}:{end_cell}")
+                except Exception:
+                    _log.exception("Failed updating Regelspalten for guild %s", guild.id)
+
 # Helper: convert column index to letter(s)
 def col_to_letter(idx: int) -> str:
     s = ""

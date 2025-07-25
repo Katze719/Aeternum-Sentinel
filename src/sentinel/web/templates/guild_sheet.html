@@ -42,7 +42,6 @@
                                 </div>
                             </div>
                         </div>
-
                         <div class="field" id="role_select_field" style="display:none;">
                             <label class="label">Rollen</label>
                             <div class="control">
@@ -55,6 +54,47 @@
                                         {% endif %}
                                     </select>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Regelspalten-Settings (dynamisch) -->
+                    <div id="rule_settings_block" style="display:none;">
+                        <hr>
+                        <div class="field">
+                            <label class="label">Regel für Spalte <span id="rule_col_name"></span></label>
+                        </div>
+
+                        <!-- Verhalten bei mehreren zutreffenden Regeln -->
+                        <div class="field">
+                            <label class="label">Verhalten bei mehreren Regeln</label>
+                            <div class="control">
+                                <div class="select">
+                                    <select id="rule_behavior">
+                                        <option value="first">Erste zutreffende Regel verwenden</option>
+                                        <option value="combine">Alle Werte mit Komma trennen</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <p class="help">Bestimmt, was passiert, wenn mehrere Regeln für einen Nutzer zutreffen.</p>
+                        </div>
+
+                        <!-- Regeln-Liste -->
+                        <div id="rules_list">
+                            <!-- Regeln werden hier dynamisch hinzugefügt -->
+                        </div>
+
+                        <!-- Neue Regel hinzufügen -->
+                        <div class="field">
+                            <button class="button is-info is-small" id="add_rule_btn" type="button">+ Neue Regel
+                                hinzufügen</button>
+                        </div>
+
+                        <div class="field is-grouped">
+                            <div class="control">
+                                <button class="button is-success" id="save_rule_btn" type="button">Speichern</button>
+                            </div>
+                            <div class="control">
+                                <button class="button" id="cancel_rule_btn" type="button">Abbrechen</button>
                             </div>
                         </div>
                     </div>
@@ -84,6 +124,14 @@
                 await populateWorksheets();
             })();
 
+            // Ensure member settings are applied after DOM is fully loaded
+            document.addEventListener('DOMContentLoaded', () => {
+                // Re-apply member settings if we have a current mapping
+                if (window.__current_mapping) {
+                    applyMemberSettings(window.__current_mapping);
+                }
+            });
+
             // --- Member selection logic (managed per worksheet) ---
             const memberSettingsBlock = document.getElementById('member_settings_block');
             const memberScopeEl = document.getElementById('member_scope');
@@ -103,7 +151,7 @@
                         memberScopeEl.value = mappingObj.member_scope || 'all';
                     }
                     if (roleIdEl) {
-                        const ids = mappingObj.role_ids || [];
+                        const ids = (mappingObj.role_ids || []).map(String);
                         Array.from(roleIdEl.options).forEach(opt => {
                             opt.selected = ids.includes(opt.value);
                         });
@@ -261,6 +309,9 @@
                 }
 
                 cont.innerHTML = html;
+
+                // Highlight Regelspalten nach dem Rendern
+                await colorizeSheetPreview();
             }
 
             async function saveConfig() {
@@ -387,6 +438,348 @@
 
             // Save config whenever sheet ID changes to keep backend in sync
             document.getElementById('sheet_id').addEventListener('blur', saveConfig);
+
+            // --- Regelspalten-Kontextmenü und Settings ---
+            let mappingColumns = [];
+            let currentRuleCol = null;
+            let currentRuleColIdx = null;
+            let currentRuleSheet = null;
+            let ruleSettingsBlock = document.getElementById('rule_settings_block');
+            let ruleColNameEl = document.getElementById('rule_col_name');
+            let rulesListEl = document.getElementById('rules_list');
+            let addRuleBtn = document.getElementById('add_rule_btn');
+            let saveRuleBtn = document.getElementById('save_rule_btn');
+            let cancelRuleBtn = document.getElementById('cancel_rule_btn');
+            let ruleBehaviorEl = document.getElementById('rule_behavior');
+
+            async function loadMappingColumns() {
+                const resp = await fetch(`/guilds/{{ guild_id }}/mapping-columns`);
+                mappingColumns = await resp.json();
+            }
+
+            // Funktion zum Erstellen einer neuen Regel-UI
+            function createRuleElement(rule = null, ruleIndex = 0) {
+                const ruleDiv = document.createElement('div');
+                ruleDiv.className = 'rule-item box mb-3';
+                ruleDiv.dataset.ruleIndex = ruleIndex;
+
+                const ruleData = rule || { mode: 'string', value: '', roles: [] };
+
+                ruleDiv.innerHTML = `
+                    <div class="field">
+                        <label class="label">Regel ${ruleIndex + 1}</label>
+                        <button class="button is-danger is-small" style="float: right;" onclick="removeRule(this)">✖</button>
+                    </div>
+                    <div class="field">
+                        <label class="label">Modus</label>
+                        <div class="control">
+                            <div class="select">
+                                <select class="rule-mode">
+                                    <option value="string" ${ruleData.mode === 'string' ? 'selected' : ''}>String</option>
+                                    <option value="truefalse" ${ruleData.mode === 'truefalse' ? 'selected' : ''}>True/False</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="field rule-value-field" style="display: ${ruleData.mode === 'string' ? '' : 'none'};">
+                        <label class="label">Wert (bei String)</label>
+                        <div class="control">
+                            <input class="input rule-value" type="text" value="${ruleData.value || ''}">
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label class="label">Rollen</label>
+                        <div class="control">
+                            <div class="select is-fullwidth is-multiple">
+                                <select class="rule-roles" multiple size="6" data-choices>
+                                    {% if roles %}
+                                    {% for role in roles %}
+                                    <option value="{{ role.id }}" ${(ruleData.roles || []).includes('{{ role.id }}') ? 'selected' : ''}>{{ role.name }}</option>
+                                    {% endfor %}
+                                    {% endif %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                // Event Listener für Modus-Änderung
+                const modeSelect = ruleDiv.querySelector('.rule-mode');
+                const valueField = ruleDiv.querySelector('.rule-value-field');
+                modeSelect.addEventListener('change', () => {
+                    valueField.style.display = modeSelect.value === 'string' ? '' : 'none';
+                });
+
+                return ruleDiv;
+            }
+
+            // Funktion zum Entfernen einer Regel
+            window.removeRule = function (btn) {
+                const ruleItem = btn.closest('.rule-item');
+                ruleItem.remove();
+                // Aktualisiere die Regel-Indizes
+                document.querySelectorAll('.rule-item').forEach((item, index) => {
+                    item.dataset.ruleIndex = index;
+                    item.querySelector('.label').textContent = `Regel ${index + 1}`;
+                });
+            };
+
+            // Funktion zum Hinzufügen einer neuen Regel
+            addRuleBtn.addEventListener('click', () => {
+                const ruleCount = document.querySelectorAll('.rule-item').length;
+                const newRule = createRuleElement(null, ruleCount);
+                rulesListEl.appendChild(newRule);
+
+                // Choices.js für neue Select-Elemente aktivieren
+                const choicesEl = newRule.querySelector('.rule-roles');
+                if (choicesEl) {
+                    new Choices(choicesEl, { searchEnabled: true, itemSelectText: '', renderSelectedChoices: 'always', removeItemButton: true });
+                }
+            });
+
+            // Funktion zum Sammeln aller Regeln
+            function collectRules() {
+                const rules = [];
+                document.querySelectorAll('.rule-item').forEach((ruleItem, index) => {
+                    const mode = ruleItem.querySelector('.rule-mode').value;
+                    const value = ruleItem.querySelector('.rule-value').value;
+                    const rolesSelect = ruleItem.querySelector('.rule-roles');
+                    const roles = Array.from(rolesSelect.selectedOptions).map(opt => opt.value);
+
+                    rules.push({
+                        mode: mode,
+                        value: mode === 'string' ? value : undefined,
+                        roles: roles
+                    });
+                });
+                return rules;
+            }
+
+            // Funktion zum Rendern aller Regeln
+            function renderRules(rules = []) {
+                rulesListEl.innerHTML = '';
+                if (rules.length === 0) {
+                    // Mindestens eine leere Regel anzeigen
+                    const emptyRule = createRuleElement(null, 0);
+                    rulesListEl.appendChild(emptyRule);
+
+                    // Choices.js aktivieren
+                    const choicesEl = emptyRule.querySelector('.rule-roles');
+                    if (choicesEl) {
+                        new Choices(choicesEl, { searchEnabled: true, itemSelectText: '', renderSelectedChoices: 'always', removeItemButton: true });
+                    }
+                } else {
+                    rules.forEach((rule, index) => {
+                        const ruleElement = createRuleElement(rule, index);
+                        rulesListEl.appendChild(ruleElement);
+
+                        // Choices.js aktivieren
+                        const choicesEl = ruleElement.querySelector('.rule-roles');
+                        if (choicesEl) {
+                            new Choices(choicesEl, { searchEnabled: true, itemSelectText: '', renderSelectedChoices: 'always', removeItemButton: true });
+                        }
+                    });
+                }
+            }
+
+            // --- Regelspalten-Highlighting nach Preview-Reload ---
+            async function colorizeSheetPreview() {
+                setTimeout(async () => {
+                    const table = document.querySelector('.sheet-preview');
+                    if (!table) return;
+                    // Entferne alte Regel-Highlightings
+                    table.querySelectorAll('.rule-mapped').forEach(el => el.classList.remove('rule-mapped'));
+
+                    const wsName = document.getElementById('worksheet_name').value.trim();
+                    // Hole aktuelle Mapping-Spalten
+                    const resp = await fetch(`/guilds/{{ guild_id }}/mapping-columns`);
+                    const mappingColumns = await resp.json();
+
+                    // Header-Zeile im <thead>
+                    const theadRow = table.querySelector('thead tr');
+                    if (!theadRow) return;
+
+                    // Alle Zeilen im <tbody>
+                    const tbodyRows = Array.from(table.querySelectorAll('tbody tr'));
+
+                    // Für jede Regelspalte: Spaltenindex bestimmen wie beim Usermapping
+                    mappingColumns.forEach(col => {
+                        // Suche Spaltenindex (case-insensitive, trim)
+                        const headerCells = Array.from(theadRow.children).slice(1); // skip row number
+                        const idx = headerCells.findIndex(th => th.textContent.trim().toLowerCase() === col.name.trim().toLowerCase());
+                        if (idx === -1) return;
+                        const colIdx = idx + 1; // +1 wegen row number
+
+                        // Header einfärben
+                        if (theadRow.children[colIdx]) {
+                            theadRow.children[colIdx].classList.add('rule-mapped');
+                        }
+                        // Alle Zellen in dieser Spalte einfärben
+                        tbodyRows.forEach(tr => {
+                            // Finde alle <td> (ohne <th>)
+                            const tds = Array.from(tr.querySelectorAll('td'));
+                            const td = tds[idx];
+                            if (td) {
+                                td.classList.add('rule-mapped');
+                            }
+                        });
+                    });
+                }, 200);
+            }
+            // Rufe colorizeSheetPreview nach jedem Preview-Reload auf
+            document.addEventListener('DOMContentLoaded', colorizeSheetPreview);
+
+            // Kontextmenü für Regelspalten
+            document.addEventListener('contextmenu', async function (e) {
+                const td = e.target.closest('#sheet_container td');
+                if (!td) return;
+                const table = td.closest('table');
+                if (!table) return;
+                const tr = td.parentElement;
+                const colIdx = Array.from(tr.children).indexOf(td) - 1; // minus row header
+                const headerRow = table.querySelector('thead tr');
+                const colName = headerRow && headerRow.children[colIdx + 1] ? headerRow.children[colIdx + 1].textContent.trim() : null;
+                if (!colName) return;
+                const wsName = document.getElementById('worksheet_name').value.trim();
+                await loadMappingColumns();
+                const isUserMapping = window.__current_mapping != null;
+                const ruleCol = mappingColumns.find(col => col.name === colName);
+                // Wenn Usermapping existiert und diese Spalte keine Regelspalte ist: Regel erstellen
+                if (isUserMapping && !ruleCol) {
+                    e.preventDefault();
+                    let ctxMenu = document.createElement('div');
+                    ctxMenu.className = 'sheet-context dropdown-content';
+                    ctxMenu.style.left = e.pageX + 'px';
+                    ctxMenu.style.top = e.pageY + 'px';
+                    ctxMenu.innerHTML = `<a class="dropdown-item" id="set_rule_btn">Regel einstellen für Spalte <b>${colName}</b></a>`;
+                    document.body.appendChild(ctxMenu);
+                    ctxMenu.querySelector('#set_rule_btn').addEventListener('click', () => {
+                        ctxMenu.remove();
+                        showRuleSettings(colName, colIdx, wsName);
+                    });
+                    document.addEventListener('click', () => { ctxMenu.remove(); }, { once: true });
+                }
+                // Wenn Spalte eine Regelspalte ist: Bearbeiten/Löschen anbieten
+                if (ruleCol) {
+                    e.preventDefault();
+                    let ctxMenu = document.createElement('div');
+                    ctxMenu.className = 'sheet-context dropdown-content';
+                    ctxMenu.style.left = e.pageX + 'px';
+                    ctxMenu.style.top = e.pageY + 'px';
+                    ctxMenu.innerHTML = `
+                        <a class="dropdown-item" id="edit_rule_btn">Regel bearbeiten</a>
+                        <a class="dropdown-item" id="delete_rule_btn">Regel löschen</a>
+                    `;
+                    document.body.appendChild(ctxMenu);
+                    ctxMenu.querySelector('#edit_rule_btn').addEventListener('click', () => {
+                        ctxMenu.remove();
+                        showRuleSettings(colName, colIdx, wsName, ruleCol);
+                    });
+                    ctxMenu.querySelector('#delete_rule_btn').addEventListener('click', async () => {
+                        ctxMenu.remove();
+                        await loadMappingColumns();
+                        const newCols = mappingColumns.filter(col => col.name !== colName);
+                        await fetch(`/guilds/{{ guild_id }}/mapping-columns`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(newCols)
+                        });
+                        window.showToast('Regelspalte entfernt', window.toastTypes.INFO);
+                        window.loadPreview();
+                    });
+                    document.addEventListener('click', () => { ctxMenu.remove(); }, { once: true });
+                }
+            });
+
+            function showRuleSettings(colName, colIdx, wsName, ruleCol = null) {
+                currentRuleCol = colName;
+                currentRuleColIdx = colIdx;
+                currentRuleSheet = wsName;
+                ruleColNameEl.textContent = colName;
+                ruleSettingsBlock.style.display = '';
+
+                // Felder befüllen, ggf. mit bestehender Regel
+                if (ruleCol) {
+                    // Migration: Falls altes Format, konvertiere zu neuem Format
+                    if (ruleCol.rules) {
+                        // Neues Format - verwende rules Array
+                        renderRules(ruleCol.rules);
+                    } else if (ruleCol.mode) {
+                        // Altes Format - konvertiere zu neuem Format
+                        const oldRule = {
+                            mode: ruleCol.mode,
+                            value: ruleCol.mode === 'string' ? (ruleCol.value || '') : '',
+                            roles: (ruleCol.roles || []).map(String)
+                        };
+                        renderRules([oldRule]);
+                    } else {
+                        // Keine Regeln vorhanden
+                        renderRules([]);
+                    }
+
+                    // Behavior setzen
+                    if (ruleBehaviorEl) {
+                        ruleBehaviorEl.value = ruleCol.behavior || 'first';
+                    }
+                } else {
+                    // Neue Regelspalte - leere Regeln anzeigen
+                    renderRules([]);
+                    if (ruleBehaviorEl) {
+                        ruleBehaviorEl.value = 'first';
+                    }
+                }
+            }
+
+            saveRuleBtn.addEventListener('click', async () => {
+                if (!currentRuleCol) return;
+
+                const rules = collectRules();
+                const behavior = ruleBehaviorEl ? ruleBehaviorEl.value : 'first';
+
+                // Validierung: Mindestens eine Regel mit Rollen
+                const validRules = rules.filter(rule => rule.roles.length > 0);
+                if (validRules.length === 0) {
+                    window.showToast('Mindestens eine Regel mit Rollen erforderlich', window.toastTypes.ERROR);
+                    return;
+                }
+
+                await loadMappingColumns();
+
+                // Update oder neu anlegen
+                const idx = mappingColumns.findIndex(col => col.name === currentRuleCol);
+                if (idx >= 0) {
+                    mappingColumns[idx] = {
+                        name: currentRuleCol,
+                        rules: validRules,
+                        behavior: behavior
+                    };
+                } else {
+                    mappingColumns.push({
+                        name: currentRuleCol,
+                        rules: validRules,
+                        behavior: behavior
+                    });
+                }
+
+                await fetch(`/guilds/{{ guild_id }}/mapping-columns`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(mappingColumns)
+                });
+
+                window.showToast('Regelspalte gespeichert', window.toastTypes.INFO);
+                ruleSettingsBlock.style.display = 'none';
+                currentRuleCol = null;
+                currentRuleColIdx = null;
+                currentRuleSheet = null;
+                window.loadPreview();
+            });
+            cancelRuleBtn.addEventListener('click', () => {
+                ruleSettingsBlock.style.display = 'none';
+                currentRuleCol = null;
+                currentRuleColIdx = null;
+                currentRuleSheet = null;
+            });
         })();
     </script>
 </div> <!-- .sheet-page -->

@@ -46,4 +46,28 @@ async def set_google_sheet_config(
     sheet_cfg.update(allowed)
     cfg["google_sheet"] = sheet_cfg
     storage.save_guild_config(guild_id, cfg)
+    return {"status": "ok"}
+
+# --- Mapping Columns API ---
+
+@router.get("/guilds/{guild_id}/mapping-columns")
+async def get_mapping_columns(guild_id: int, request: Request, worksheet: str | None = None):
+    """Liefert die konfigurierten Mapping-Spalten für das User-Mapping (worksheet-spezifisch)."""
+    require_admin(guild_id, request)
+    cfg = storage.load_guild_config(guild_id)
+    worksheet_name = worksheet or cfg.get("google_sheet", {}).get("worksheet_name")
+    mapping_columns = cfg.get("mapping_columns", {})
+    return mapping_columns.get(worksheet_name, [])
+
+@router.post("/guilds/{guild_id}/mapping-columns")
+async def set_mapping_columns(guild_id: int, request: Request, columns: list = Body(...), worksheet: str | None = None):
+    """Setzt die Mapping-Spalten-Konfiguration für das aktuelle Worksheet (ersetzt alle Spaltenregeln)."""
+    require_admin(guild_id, request)
+    cfg = storage.load_guild_config(guild_id)
+    worksheet_name = worksheet or cfg.get("google_sheet", {}).get("worksheet_name")
+    if not worksheet_name:
+        raise HTTPException(status_code=400, detail="worksheet_name erforderlich")
+    mapping_columns = cfg.setdefault("mapping_columns", {})
+    mapping_columns[worksheet_name] = columns
+    storage.save_guild_config(guild_id, cfg)
     return {"status": "ok"} 

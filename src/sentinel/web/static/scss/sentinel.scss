@@ -8,6 +8,7 @@ $bg-card-color: #36393f;
 $bg-elevated-color: #202225;
 $text-normal-color: #dcddde;
 $accent-color: #ff4f4f;
+$rule-green: #4fd47a;
 
 // Additional color variables
 $text-light-color: #ffffff;
@@ -323,6 +324,12 @@ pre {
     background-color: lighten($accent-color, 15%) !important;
     color: $bg-dark-color !important;
     cursor: pointer;
+}
+
+.sheet-preview th.rule-mapped,
+.sheet-preview td.rule-mapped {
+    background-color: rgba(red($rule-green), green($rule-green), blue($rule-green), 0.22) !important;
+    color: $text-normal-color !important;
 }
 
 // ------------------------------------------------------------
