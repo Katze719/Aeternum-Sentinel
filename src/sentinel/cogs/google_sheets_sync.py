@@ -363,7 +363,7 @@ class GoogleSheetsSync(commands.Cog):
         
         _log.info("Prepared %d username updates for guild %s", len(username_updates), guild.id)
         
-        # Führe Username-Updates aus
+        # Führe Username-Updates aus (nur wenn Änderungen vorhanden)
         if username_updates:
             try:
                 _log.info("Executing username updates for guild %s", guild.id)
@@ -373,24 +373,8 @@ class GoogleSheetsSync(commands.Cog):
             except Exception as e:
                 _log.exception("Failed updating username mapping for guild %s: %s", guild.id, e)
                 raise Exception(f"Username-Mapping Update fehlgeschlagen: {str(e)}")
-        elif names:  # Falls keine Updates erkannt wurden, aber Namen vorhanden sind
-            # Das passiert bei leeren Sheets oder wenn die Diff-Erkennung fehlschlägt
-            _log.info("No username updates detected but names exist. Forcing update for guild %s", guild.id)
-            try:
-                if direction == "vertical":
-                    # Force update für vertikales Mapping
-                    for i, name in enumerate(names):
-                        cell_range = f"{col_to_letter(col_anchor)}{row_anchor + i}"
-                        await ws.update([[name]], cell_range)
-                else:
-                    # Force update für horizontales Mapping
-                    new_row = names + [""] * (max_len - len(names))
-                    cell_range = f"{col_to_letter(col_anchor)}{row_anchor}:{col_to_letter(col_anchor + max_len - 1)}{row_anchor}"
-                    await ws.update([new_row], cell_range)
-                _log.info("Completed forced username updates for guild %s", guild.id)
-            except Exception as e:
-                _log.exception("Failed forcing username update for guild %s: %s", guild.id, e)
-                raise Exception(f"Erzwungenes Username-Update fehlgeschlagen: {str(e)}")
+        else:
+            _log.info("No username updates needed for guild %s", guild.id)
 
         # --------------------------------------------------
         # Regelspalten: mapping_columns aus der Config auswerten und eintragen
