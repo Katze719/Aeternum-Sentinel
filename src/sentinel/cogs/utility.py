@@ -53,6 +53,45 @@ class Utility(commands.Cog):
         )
         await interaction.response.send_message(embed=embed)
 
+    @app_commands.command(name="changelog", description="Zeige den aktuellen Changelog als Embed.")
+    async def changelog(self, interaction: discord.Interaction):
+        """Sendet den aktuellen Changelog als Discord Embed."""
+        import pathlib
+        changelog_path = pathlib.Path(__file__).parent.parent.parent.parent / "CHANGELOG.md"
+        try:
+            with changelog_path.open("r", encoding="utf-8") as f:
+                content = f.read()
+        except Exception as exc:
+            await interaction.response.send_message(f"Fehler beim Laden des Changelogs: {exc}", ephemeral=True)
+            return
+
+        # Discord Embeds haben ein Limit von 4096 Zeichen pro Embed-Description
+        # Wir splitten den Changelog ggf. in mehrere Embeds
+        max_len = 4096
+        lines = content.splitlines()
+        chunks = []
+        current = ""
+        for line in lines:
+            if len(current) + len(line) + 1 > max_len:
+                chunks.append(current)
+                current = ""
+            current += line + "\n"
+        if current:
+            chunks.append(current)
+
+        embeds = []
+        for i, chunk in enumerate(chunks):
+            embed = discord.Embed(
+                title="🦄 Changelog v1.0.0" if i == 0 else None,
+                description=chunk,
+                color=discord.Color.purple(),
+            )
+            embeds.append(embed)
+
+        await interaction.response.send_message(embed=embeds[0])
+        for embed in embeds[1:]:
+            await interaction.followup.send(embed=embed)
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Utility(bot)) 
