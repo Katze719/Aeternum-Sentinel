@@ -54,10 +54,12 @@ class GoogleSheetsSync(commands.Cog):
         await interaction.response.defer(thinking=True)
 
         try:
+            _log.info("Starting manual sheet_sync for guild %s", guild.id)
             await self._sync_guild(guild)
+            _log.info("Manual sheet_sync completed successfully for guild %s", guild.id)
         except Exception as exc:
             _log.exception("Manual sheet_sync failed for guild %s: %s", guild.id, exc)
-            await interaction.followup.send("❌ Synchronisation fehlgeschlagen. Bitte prüfe die Logs.", ephemeral=True)
+            await interaction.followup.send(f"❌ Synchronisation fehlgeschlagen: {str(exc)}", ephemeral=True)
             return
 
         await interaction.followup.send("✅ Mitglieder wurden erfolgreich mit Google Sheets synchronisiert.", ephemeral=True)
@@ -113,10 +115,13 @@ class GoogleSheetsSync(commands.Cog):
     async def _sync_guild(self, guild: discord.Guild):
         """Synchronise *guild* members to its configured Google Sheet."""
 
+        _log.info("Starting sync for guild %s", guild.id)
+
         # Fetch google-sheet config
         cfg = storage.load_guild_config(guild.id)
         sheet_cfg = cfg.get("google_sheet")
         if not sheet_cfg:
+            _log.warning("No google_sheet config found for guild %s", guild.id)
             return  # not configured
 
         creds_path: str | None = sheet_cfg.get("credentials_path")  # type: ignore[assignment]
@@ -125,31 +130,46 @@ class GoogleSheetsSync(commands.Cog):
         username_mappings = sheet_cfg.get("username_mappings", {})
         mapping_for_ws = {} if not worksheet_name_in_cfg else username_mappings.get(worksheet_name_in_cfg, {})
 
+        _log.info("Guild %s config: sheet_id=%s, worksheet=%s, has_mapping=%s", 
+                 guild.id, sheet_id, worksheet_name_in_cfg, bool(mapping_for_ws))
+
         if not sheet_id:
+            _log.warning("No sheet_id configured for guild %s", guild.id)
             return
 
-        # Google auth
-        mgr = get_async_gspread_client_manager(creds_path) if creds_path else get_async_gspread_client_manager()
-        agc = await mgr.authorize()
-        ss = await agc.open_by_key(sheet_id)
+        try:
+            # Google auth
+            _log.info("Authenticating with Google Sheets for guild %s", guild.id)
+            mgr = get_async_gspread_client_manager(creds_path) if creds_path else get_async_gspread_client_manager()
+            agc = await mgr.authorize()
+            ss = await agc.open_by_key(sheet_id)
+            _log.info("Successfully opened Google Sheet %s for guild %s", sheet_id, guild.id)
+        except Exception as e:
+            _log.error("Failed to authenticate/open Google Sheet for guild %s: %s", guild.id, e)
+            raise Exception(f"Google Sheets Authentifizierung fehlgeschlagen: {str(e)}")
 
         # --- Mapping Sheet: bot-config (DO NOT DELETE) ---
         mapping_sheet_name = "bot-config (DO NOT DELETE)"
         mapping_headers = ["discord_id", "username", "display_name", "joined_at", "last_seen", "status"]
         try:
+            _log.info("Accessing mapping worksheet '%s' for guild %s", mapping_sheet_name, guild.id)
             mapping_ws = await ss.worksheet(mapping_sheet_name)
         except Exception:
             # Not found: create it
+            _log.info("Creating mapping worksheet '%s' for guild %s", mapping_sheet_name, guild.id)
             mapping_ws = await ss.add_worksheet(mapping_sheet_name, rows=1000, cols=len(mapping_headers))
             await mapping_ws.update([mapping_headers], "A1")
 
         # Read all mapping rows (skip header)
+        _log.info("Reading mapping data for guild %s", guild.id)
         mapping_rows = await mapping_ws.get_all_values()
         mapping = {}  # discord_id -> row index (1-based), row data
         for idx, row in enumerate(mapping_rows[1:], start=2):
             if len(row) < 1 or not row[0]:
                 continue
             mapping[row[0]] = (idx, row)
+
+        _log.info("Found %d existing mappings for guild %s", len(mapping), guild.id)
 
         # Aktuelle Member
         now = discord.utils.utcnow().isoformat(sep=" ", timespec="seconds")
@@ -192,6 +212,8 @@ class GoogleSheetsSync(commands.Cog):
                 new_row[5] = "left"
                 updates.append((row_idx, new_row))
 
+        _log.info("Processing %d mapping updates for guild %s", len(updates), guild.id)
+
         # Schreibe alle Updates (bestehende Zeilen und neue Zeilen)
         for row_idx, row in updates:
             if row_idx is not None:
@@ -200,10 +222,18 @@ class GoogleSheetsSync(commands.Cog):
             else:
                 await mapping_ws.append_row(row, value_input_option="USER_ENTERED")
 
+        _log.info("Completed mapping updates for guild %s", guild.id)
+
         # --- Normale User-Listen: nur aktive Nutzer ---
         if worksheet_name_in_cfg:
-            ws = await ss.worksheet(worksheet_name_in_cfg)
+            try:
+                _log.info("Accessing worksheet '%s' for guild %s", worksheet_name_in_cfg, guild.id)
+                ws = await ss.worksheet(worksheet_name_in_cfg)
+            except Exception as e:
+                _log.error("Failed to access worksheet '%s' for guild %s: %s", worksheet_name_in_cfg, guild.id, e)
+                raise Exception(f"Worksheet '{worksheet_name_in_cfg}' nicht gefunden: {str(e)}")
         else:
+            _log.info("Using first worksheet for guild %s", guild.id)
             ws = (await ss.worksheets())[0]
 
         # Build member list (nur aktive Nutzer laut Mapping)
@@ -228,21 +258,30 @@ class GoogleSheetsSync(commands.Cog):
         else:
             target_members = [m for m in guild.members if str(m.id) in active_mapping]
 
+        _log.info("Found %d target members for guild %s (scope: %s)", len(target_members), guild.id, member_scope)
+
         # --------------------------------------------------
         # Determine anchor position from username mapping
         # --------------------------------------------------
         row_anchor = mapping_for_ws.get("row")  # 1-based
         col_anchor = mapping_for_ws.get("col")  # 0-based
         direction = mapping_for_ws.get("direction", "vertical")
+        
+        _log.info("Mapping config for guild %s: row=%s, col=%s, direction=%s", 
+                 guild.id, row_anchor, col_anchor, direction)
+        
         if row_anchor is None or col_anchor is None:
-            # No mapping defined → nothing to update
+            _log.warning("No mapping defined for guild %s - nothing to update", guild.id)
             return
 
         # Lade das Worksheet nur EINMAL für alle Operationen
+        _log.info("Loading worksheet data for guild %s", guild.id)
         all_values = await ws.get_all_values()
         
         # Build list of usernames (display names)
         names = [m.display_name for m in target_members]
+        
+        _log.info("Processing %d usernames for guild %s", len(names), guild.id)
         
         # --------------------------------------------------
         # Fetch existing names to compute longest length
@@ -273,6 +312,8 @@ class GoogleSheetsSync(commands.Cog):
         
         max_len = max(len(names), len(existing_names))
         
+        _log.info("Found %d existing names, %d new names for guild %s", len(existing_names), len(names), guild.id)
+        
         # --------------------------------------------------
         # Username Mapping: Robuste Logik für alle Fälle
         # --------------------------------------------------
@@ -302,13 +343,18 @@ class GoogleSheetsSync(commands.Cog):
                 cell_range = f"{col_to_letter(col_anchor)}{row_anchor}:{col_to_letter(col_anchor + max_len - 1)}{row_anchor}"
                 username_updates.append((cell_range, [new_row]))
         
+        _log.info("Prepared %d username updates for guild %s", len(username_updates), guild.id)
+        
         # Führe Username-Updates aus
         if username_updates:
             try:
+                _log.info("Executing username updates for guild %s", guild.id)
                 for cell_range, value in username_updates:
                     await ws.update(value, cell_range)
-            except Exception:
-                _log.exception("Failed updating username mapping for guild %s", guild.id)
+                _log.info("Completed username updates for guild %s", guild.id)
+            except Exception as e:
+                _log.exception("Failed updating username mapping for guild %s: %s", guild.id, e)
+                raise Exception(f"Username-Mapping Update fehlgeschlagen: {str(e)}")
         elif names:  # Falls keine Updates erkannt wurden, aber Namen vorhanden sind
             # Das passiert bei leeren Sheets oder wenn die Diff-Erkennung fehlschlägt
             _log.info("No username updates detected but names exist. Forcing update for guild %s", guild.id)
@@ -323,15 +369,21 @@ class GoogleSheetsSync(commands.Cog):
                     new_row = names + [""] * (max_len - len(names))
                     cell_range = f"{col_to_letter(col_anchor)}{row_anchor}:{col_to_letter(col_anchor + max_len - 1)}{row_anchor}"
                     await ws.update([new_row], cell_range)
-            except Exception:
-                _log.exception("Failed forcing username update for guild %s", guild.id)
+                _log.info("Completed forced username updates for guild %s", guild.id)
+            except Exception as e:
+                _log.exception("Failed forcing username update for guild %s: %s", guild.id, e)
+                raise Exception(f"Erzwungenes Username-Update fehlgeschlagen: {str(e)}")
 
         # --------------------------------------------------
         # Regelspalten: mapping_columns aus der Config auswerten und eintragen
         # --------------------------------------------------
         mapping_columns_cfg = cfg.get("mapping_columns", {})
         mapping_columns = mapping_columns_cfg.get(worksheet_name_in_cfg, [])
+        
+        _log.info("Found %d mapping columns for guild %s", len(mapping_columns), guild.id)
+        
         if mapping_columns:
+            _log.info("Processing mapping columns for guild %s", guild.id)
             # Hole Header-Zeile und stelle sicher, dass sie vollständig ist
             header_row = all_values[row_anchor - 1] if row_anchor - 1 < len(all_values) else []
             
@@ -465,13 +517,20 @@ class GoogleSheetsSync(commands.Cog):
                     cell_range = f"{col_to_letter(min_col)}{row_idx + 1}:{col_to_letter(max_col)}{row_idx + 1}"
                     rule_updates.append((cell_range, [changed_values]))
             
+            _log.info("Prepared %d rule updates for guild %s", len(rule_updates), guild.id)
+            
             # Führe Regelspalten-Updates aus (nur wenn Änderungen vorhanden)
             if rule_updates:
                 try:
+                    _log.info("Executing rule updates for guild %s", guild.id)
                     for cell_range, value in rule_updates:
                         await ws.update(value, cell_range)
-                except Exception:
-                    _log.exception("Failed updating Regelspalten for guild %s", guild.id)
+                    _log.info("Completed rule updates for guild %s", guild.id)
+                except Exception as e:
+                    _log.exception("Failed updating Regelspalten for guild %s: %s", guild.id, e)
+                    raise Exception(f"Regelspalten-Update fehlgeschlagen: {str(e)}")
+        
+        _log.info("Sync completed successfully for guild %s", guild.id)
 
 # Helper: convert column index to letter(s)
 def col_to_letter(idx: int) -> str:
