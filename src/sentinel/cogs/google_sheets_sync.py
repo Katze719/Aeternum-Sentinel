@@ -214,12 +214,30 @@ class GoogleSheetsSync(commands.Cog):
 
         _log.info("Processing %d mapping updates for guild %s", len(updates), guild.id)
 
-        # Schreibe alle Updates (bestehende Zeilen und neue Zeilen)
+        # Schreibe nur tatsächliche Änderungen
+        new_rows = []  # Neue Zeilen zum Hinzufügen
+        changed_rows = []  # Geänderte Zeilen zum Updaten
+        
         for row_idx, row in updates:
             if row_idx is not None:
+                # Bestehende Zeile - prüfe ob sich was geändert hat
+                old_row = mapping.get(row[0], (None, []))[1] if row[0] in mapping else []
+                if old_row != row:
+                    changed_rows.append((row_idx, row))
+            else:
+                # Neue Zeile - nur hinzufügen
+                new_rows.append(row)
+        
+        # Führe Updates aus
+        if changed_rows:
+            _log.info("Updating %d changed rows for guild %s", len(changed_rows), guild.id)
+            for row_idx, row in changed_rows:
                 rng = f"A{row_idx}:F{row_idx}"
                 await mapping_ws.update([row], rng)
-            else:
+        
+        if new_rows:
+            _log.info("Adding %d new rows for guild %s", len(new_rows), guild.id)
+            for row in new_rows:
                 await mapping_ws.append_row(row, value_input_option="USER_ENTERED")
 
         _log.info("Completed mapping updates for guild %s", guild.id)
