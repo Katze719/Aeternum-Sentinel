@@ -274,7 +274,7 @@ class GoogleSheetsSync(commands.Cog):
         max_len = max(len(names), len(existing_names))
         
         # --------------------------------------------------
-        # Username Mapping: Nur Diffs aktualisieren
+        # Username Mapping: Robuste Logik für alle Fälle
         # --------------------------------------------------
         username_updates = []  # (cell_range, new_value)
         
@@ -302,13 +302,29 @@ class GoogleSheetsSync(commands.Cog):
                 cell_range = f"{col_to_letter(col_anchor)}{row_anchor}:{col_to_letter(col_anchor + max_len - 1)}{row_anchor}"
                 username_updates.append((cell_range, [new_row]))
         
-        # Führe Username-Updates aus (nur wenn Änderungen vorhanden)
+        # Führe Username-Updates aus
         if username_updates:
             try:
                 for cell_range, value in username_updates:
                     await ws.update(value, cell_range)
             except Exception:
                 _log.exception("Failed updating username mapping for guild %s", guild.id)
+        elif names:  # Falls keine Updates erkannt wurden, aber Namen vorhanden sind
+            # Das passiert bei leeren Sheets oder wenn die Diff-Erkennung fehlschlägt
+            _log.info("No username updates detected but names exist. Forcing update for guild %s", guild.id)
+            try:
+                if direction == "vertical":
+                    # Force update für vertikales Mapping
+                    for i, name in enumerate(names):
+                        cell_range = f"{col_to_letter(col_anchor)}{row_anchor + i}"
+                        await ws.update([[name]], cell_range)
+                else:
+                    # Force update für horizontales Mapping
+                    new_row = names + [""] * (max_len - len(names))
+                    cell_range = f"{col_to_letter(col_anchor)}{row_anchor}:{col_to_letter(col_anchor + max_len - 1)}{row_anchor}"
+                    await ws.update([new_row], cell_range)
+            except Exception:
+                _log.exception("Failed forcing username update for guild %s", guild.id)
 
         # --------------------------------------------------
         # Regelspalten: mapping_columns aus der Config auswerten und eintragen
