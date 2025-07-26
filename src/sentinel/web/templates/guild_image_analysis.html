@@ -1,0 +1,296 @@
+{% extends "base.html" %}
+
+{% block title %}Bildanalyse - {{ guild.name }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h2 class="title is-3">🔍 Bildanalyse - {{ guild.name }}</h2>
+    <p class="subtitle is-6">Konfiguriere die automatische Analyse von Bildern zur Extraktion von Benutzernamen</p>
+
+    <!-- Configuration Section -->
+    <div class="card mb-6">
+        <header class="card-header">
+            <p class="card-header-title">⚙️ Konfiguration</p>
+        </header>
+        <div class="card-content">
+            <form id="configForm">
+                <!-- Enable/Disable Toggle -->
+                <div class="field">
+                    <input id="enabled" type="checkbox" class="switch is-rounded is-info">
+                    <label for="enabled">Bildanalyse aktivieren</label>
+                    <p class="help">Automatische Analyse von hochgeladenen Bildern</p>
+                </div>
+
+                <!-- Channel Selection -->
+                <div class="field">
+                    <label class="label">Überwachter Kanal</label>
+                    <div class="control">
+                        <div class="select is-fullwidth">
+                            <select id="channel">
+                                <option value="">Kanal auswählen...</option>
+                            </select>
+                        </div>
+                    </div>
+                    <p class="help">Der Bot überwacht diesen Kanal auf hochgeladene Bilder</p>
+                </div>
+
+                <!-- Gemini API Key -->
+                <div class="field">
+                    <label class="label">Gemini API-Schlüssel</label>
+                    <div class="control">
+                        <input class="input" type="password" id="apiKey" placeholder="AIza...">
+                    </div>
+                    <p class="help">API-Schlüssel für Google Gemini (gemini-2.0-flash)</p>
+                    <p class="help">
+                        <a href="https://aistudio.google.com/app/apikey" target="_blank">API-Schlüssel erstellen →</a>
+                    </p>
+                </div>
+
+                <!-- Save Button -->
+                <div class="field">
+                    <div class="control">
+                        <button type="submit" class="button is-primary">Konfiguration speichern</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Test Section -->
+    <div class="card mb-6">
+        <header class="card-header">
+            <p class="card-header-title">🧪 Test</p>
+        </header>
+        <div class="card-content">
+            <form id="testForm">
+                <div class="field">
+                    <label class="label">Bild-URL zum Testen</label>
+                    <div class="control">
+                        <input class="input" type="url" id="testImageUrl" placeholder="https://example.com/image.jpg"
+                            required>
+                    </div>
+                    <p class="help">Gib eine URL zu einem Bild ein, um die Analyse zu testen</p>
+                </div>
+
+                <div class="field">
+                    <div class="control">
+                        <button type="submit" class="button is-info">Bild analysieren</button>
+                    </div>
+                </div>
+            </form>
+
+            <div id="testResults" style="display: none;">
+                <hr class="my-4">
+                <h4 class="title is-5">Ergebnisse:</h4>
+
+                <div class="field">
+                    <label class="label">Extrahierter Text:</label>
+                    <div class="control">
+                        <textarea class="textarea" id="extractedText" rows="4" readonly></textarea>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label class="label">Gefundene Benutzernamen:</label>
+                    <div class="control">
+                        <div id="usernamesList" class="notification is-success">
+                            <!-- Usernames will be populated here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Info Section -->
+    <div class="card">
+        <header class="card-header">
+            <p class="card-header-title">ℹ️ Informationen</p>
+        </header>
+        <div class="card-content">
+            <div class="notification is-info">
+                <p><strong>Wie funktioniert die Bildanalyse?</strong></p>
+                <ul class="mt-2">
+                    <li>• Der Bot überwacht den konfigurierten Kanal auf hochgeladene Bilder in <strong>Threads</strong>
+                    </li>
+                    <li>• Wenn ein Bild in einem Thread gefunden wird, wird es automatisch an Gemini AI gesendet</li>
+                    <li>• Die extrahierten Benutzernamen werden direkt als Discord-Nachricht in den <strong>gleichen
+                            Thread</strong> gesendet</li>
+                    <li>• Du kannst auch manuell den /analyze_image Befehl in einem Thread verwenden</li>
+                    <li>• <strong>Wichtig:</strong> Bilder im Hauptkanal werden nicht automatisch verarbeitet, nur in
+                        Threads</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    import { showToast, toastTypes } from '/static/js/show_toast.js';
+
+    let guildId = '{{ guild.id }}';
+
+    // Load configuration
+    async function loadConfig() {
+        try {
+            const response = await fetch(`/guilds/${guildId}/image-analysis`, {
+                credentials: 'same-origin'
+            });
+            const config = await response.json();
+
+            document.getElementById('enabled').checked = config.enabled;
+            document.getElementById('apiKey').value = config.gemini_api_key || '';
+
+            // Load channels and set selected
+            await loadChannels(config.channel_id);
+
+        } catch (error) {
+            console.error('Failed to load config:', error);
+            showToast('Fehler beim Laden der Konfiguration', toastTypes.ERROR);
+        }
+    }
+
+    // Load channels
+    async function loadChannels(selectedChannelId = null) {
+        try {
+            const response = await fetch(`/guilds/${guildId}/channels`, {
+                credentials: 'same-origin'
+            });
+            const channels = await response.json();
+
+            const select = document.getElementById('channel');
+            select.innerHTML = '<option value="">Kanal auswählen...</option>';
+
+            let currentCategory = null;
+            channels.forEach(channel => {
+                // Add category separator if needed
+                if (channel.category !== currentCategory) {
+                    if (channel.category) {
+                        const optgroup = document.createElement('optgroup');
+                        optgroup.label = channel.category;
+                        select.appendChild(optgroup);
+                    }
+                    currentCategory = channel.category;
+                }
+
+                const option = document.createElement('option');
+                option.value = channel.id;
+                option.textContent = `#${channel.name}`;
+                if (channel.id === selectedChannelId) {
+                    option.selected = true;
+                }
+
+                if (channel.category) {
+                    select.lastElementChild.appendChild(option);
+                } else {
+                    select.appendChild(option);
+                }
+            });
+
+        } catch (error) {
+            console.error('Failed to load channels:', error);
+            showToast('Fehler beim Laden der Kanäle', toastTypes.ERROR);
+        }
+    }
+
+    // Save configuration
+    async function saveConfig() {
+        const enabled = document.getElementById('enabled').checked;
+        const channelId = document.getElementById('channel').value;
+        const apiKey = document.getElementById('apiKey').value;
+
+        try {
+            const response = await fetch(`/guilds/${guildId}/image-analysis`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    enabled: enabled,
+                    channel_id: channelId || null,
+                    gemini_api_key: apiKey,
+                }),
+            });
+
+            if (response.ok) {
+                showToast('Konfiguration gespeichert', toastTypes.INFO);
+            } else {
+                throw new Error('Failed to save config');
+            }
+
+        } catch (error) {
+            console.error('Failed to save config:', error);
+            showToast('Fehler beim Speichern der Konfiguration', toastTypes.ERROR);
+        }
+    }
+
+
+
+    // Test image analysis
+    async function testImageAnalysis() {
+        const imageUrl = document.getElementById('testImageUrl').value;
+        const submitBtn = document.querySelector('#testForm button[type="submit"]');
+
+        submitBtn.classList.add('is-loading');
+        submitBtn.disabled = true;
+
+        try {
+            const response = await fetch(`/guilds/${guildId}/image-analysis/test`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    image_url: imageUrl
+                }),
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+
+                // Show results
+                document.getElementById('testResults').style.display = 'block';
+                document.getElementById('extractedText').value = result.extracted_text || 'Kein Text extrahiert';
+
+                // Show usernames
+                const usernamesList = document.getElementById('usernamesList');
+                if (result.usernames && result.usernames.length > 0) {
+                    usernamesList.innerHTML = result.usernames.map(username =>
+                        `<span class="tag is-success mr-2 mb-2">${username}</span>`
+                    ).join('');
+                } else {
+                    usernamesList.innerHTML = '<p>Keine Benutzernamen gefunden</p>';
+                }
+
+                showToast('Bildanalyse erfolgreich', toastTypes.INFO);
+            } else {
+                const error = await response.json();
+                throw new Error(error.detail || 'Unbekannter Fehler');
+            }
+        } catch (error) {
+            console.error('Test failed:', error);
+            showToast('Fehler bei der Bildanalyse: ' + error.message, toastTypes.ERROR);
+        } finally {
+            submitBtn.classList.remove('is-loading');
+            submitBtn.disabled = false;
+        }
+    }
+
+    // Event listeners
+    document.addEventListener('DOMContentLoaded', function () {
+        loadConfig();
+
+        document.getElementById('configForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+            saveConfig();
+        });
+
+        document.getElementById('testForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+            testImageAnalysis();
+        });
+    });
+</script>
+{% endblock %}

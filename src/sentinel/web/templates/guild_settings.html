@@ -245,6 +245,22 @@
     </div>
 </div>
 
+<div class="card mb-6">
+    <header class="card-header">
+        <p class="card-header-title">🔍 Bildanalyse</p>
+    </header>
+    <div class="card-content">
+        <p class="mb-3">Automatische Analyse von Bildern zur Extraktion von Benutzernamen mit Gemini AI</p>
+        <div class="field">
+            <div class="control">
+                <a href="/guilds/{{ guild.id }}/image-analysis-ui" class="button is-info">
+                    Bildanalyse konfigurieren
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
     async function deleteIcon(btn, roleId) {
         btn.classList.add('is-loading');

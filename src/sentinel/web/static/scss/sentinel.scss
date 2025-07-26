@@ -58,7 +58,8 @@ body {
 }
 
 .input,
-.select select {
+.select select,
+.textarea {
     background-color: $bg-elevated-color;
     border-color: $bg-card-color;
     color: $text-normal-color;
@@ -66,6 +67,7 @@ body {
 
 .input[disabled],
 .select select:disabled,
+.textarea[disabled],
 textarea[disabled] {
     background-color: $bg-elevated-color !important;
     border-color: $bg-card-color !important;
@@ -131,9 +133,18 @@ hr {
 }
 
 .input::placeholder,
+.textarea::placeholder,
 textarea::placeholder {
     color: $placeholder-color;
     opacity: 1;
+}
+
+// Focus states for form controls
+.input:focus,
+.textarea:focus,
+textarea:focus {
+    border-color: $accent-color !important;
+    box-shadow: 0 0 0 0.125em rgba(255, 79, 79, 0.25) !important;
 }
 
 // Increase contrast for helper text below form controls
@@ -287,6 +298,69 @@ code,
 pre {
     background-color: $bg-elevated-color;
     color: $text-normal-color;
+}
+
+// Notifications ---------------------------------------------------------------------
+.notification {
+    background-color: $bg-elevated-color;
+    color: $text-normal-color;
+    border: 1px solid $bg-card-color;
+
+    &.is-info {
+        background-color: rgba(79, 212, 122, 0.1);
+        border-color: rgba(79, 212, 122, 0.3);
+        color: $text-normal-color;
+    }
+
+    &.is-success {
+        background-color: rgba(79, 212, 122, 0.1);
+        border-color: rgba(79, 212, 122, 0.3);
+        color: $text-normal-color;
+    }
+
+    &.is-warning {
+        background-color: rgba(255, 193, 7, 0.1);
+        border-color: rgba(255, 193, 7, 0.3);
+        color: $text-normal-color;
+    }
+
+    &.is-danger {
+        background-color: rgba(255, 79, 79, 0.1);
+        border-color: rgba(255, 79, 79, 0.3);
+        color: $text-normal-color;
+    }
+
+    // // Override Bulma's light variants to ensure dark theme
+    // &.is-light {
+    //     background-color: $bg-elevated-color !important;
+    //     color: $text-normal-color !important;
+    //     border-color: $bg-card-color !important;
+    // }
+
+    // // Specific overrides for light variants
+    // &.is-info.is-light {
+    //     background-color: rgba(79, 212, 122, 0.1) !important;
+    //     border-color: rgba(79, 212, 122, 0.3) !important;
+    //     color: $text-normal-color !important;
+    // }
+
+    // &.is-success.is-light {
+    //     background-color: rgba(79, 212, 122, 0.1) !important;
+    //     border-color: rgba(79, 212, 122, 0.3) !important;
+    //     color: $text-normal-color !important;
+    // }
+
+    // &.is-warning.is-light {
+    //     background-color: rgba(255, 193, 7, 0.1) !important;
+    //     border-color: rgba(255, 193, 7, 0.3) !important;
+    //     color: $text-normal-color !important;
+    // }
+
+    // &.is-danger.is-light {
+    //     background-color: rgba(255, 79, 79, 0.1) !important;
+    //     border-color: rgba(255, 79, 79, 0.3) !important;
+    //     color: $text-normal-color !important;
+    // }
 }
 
 // Context menu for sheet preview

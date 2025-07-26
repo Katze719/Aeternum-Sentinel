@@ -21,6 +21,8 @@ dependencies = [
     "libsass (>=0.23.0,<0.24.0)",
     "PyDrive2>=1.16,<2.0",
     "gspread-asyncio (>=2.0.0,<3.0.0)",
+    "google-generativeai>=0.8.0,<1.0.0",
+    "aiohttp>=3.9.0,<4.0.0",
 ]
 
 [project.optional-dependencies]
