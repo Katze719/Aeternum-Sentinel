@@ -11,6 +11,7 @@ from discord import app_commands
 from discord.ext import commands
 
 import sentinel.utils.storage as storage
+from sentinel.integrations.google_sheets import get_async_gspread_client_manager
 
 _log = logging.getLogger(__name__)
 
@@ -18,6 +19,13 @@ _log = logging.getLogger(__name__)
 IMAGE_ANALYSIS_ENABLED_KEY = "image_analysis_enabled"
 IMAGE_ANALYSIS_CHANNEL_KEY = "image_analysis_channel_id"
 GEMINI_API_KEY_KEY = "gemini_api_key"
+PAYOUT_SHEET_KEY = "payout_sheet_id"
+PAYOUT_WORKSHEET_KEY = "payout_worksheet_name"
+PAYOUT_USER_COLUMN_KEY = "payout_user_column"
+PAYOUT_EVENT_ROW_KEY = "payout_event_row"
+PAYOUT_EVENT_START_COLUMN_KEY = "payout_event_start_column"
+PAYOUT_LANGUAGE_KEY = "payout_language"
+CONFIRMATION_ROLES_KEY = "confirmation_roles"
 
 class ImageAnalysis(commands.Cog):
     """Analyze images in Discord threads to extract usernames using Gemini API."""
@@ -52,6 +60,55 @@ class ImageAnalysis(commands.Cog):
     @staticmethod
     def _get_gemini_api_key(cfg: dict) -> Optional[str]:
         return cfg.get(GEMINI_API_KEY_KEY)
+
+    @staticmethod
+    def _get_payout_sheet_id(cfg: dict) -> Optional[str]:
+        return cfg.get(PAYOUT_SHEET_KEY)
+
+    @staticmethod
+    def _get_payout_worksheet_name(cfg: dict) -> Optional[str]:
+        return cfg.get(PAYOUT_WORKSHEET_KEY)
+
+    @staticmethod
+    def _get_payout_user_column(cfg: dict) -> Optional[str]:
+        return cfg.get(PAYOUT_USER_COLUMN_KEY)
+
+    @staticmethod
+    def _get_payout_event_row(cfg: dict) -> Optional[int]:
+        row = cfg.get(PAYOUT_EVENT_ROW_KEY)
+        return int(row) if row else None
+
+    @staticmethod
+    def _get_payout_event_start_column(cfg: dict) -> Optional[int]:
+        column = cfg.get(PAYOUT_EVENT_START_COLUMN_KEY)
+        if not column:
+            return None
+        
+        # If it's already a number, return it
+        if isinstance(column, int):
+            return column
+        
+        # If it's a string that's a number, convert it
+        if isinstance(column, str) and column.isdigit():
+            return int(column)
+        
+        # If it's a letter (A, B, C, etc.), convert to number
+        if isinstance(column, str) and len(column.strip()) > 0:
+            return ImageAnalysis._column_letter_to_index(column.strip()) + 1  # Convert to 1-based
+        
+        return None
+
+    @staticmethod
+    def _get_payout_language(cfg: dict) -> str:
+        return cfg.get(PAYOUT_LANGUAGE_KEY, "de")
+
+    @staticmethod
+    def _get_confirmation_roles(cfg: dict) -> List[int]:
+        """Get list of role IDs that are allowed to confirm usernames."""
+        roles = cfg.get(CONFIRMATION_ROLES_KEY, [])
+        if isinstance(roles, list):
+            return [int(role_id) for role_id in roles if str(role_id).isdigit()]
+        return []
 
     # ------------------------------------------------------------------
     # Gemini API integration
@@ -130,6 +187,212 @@ class ImageAnalysis(commands.Cog):
         # Remove duplicates and sort alphabetically
         return sorted(list(set(usernames)))
 
+    # ------------------------------------------------------------------
+    # Google Sheets payout tracking
+    # ------------------------------------------------------------------
+
+    def _resolve_worksheet_name(self, worksheet_template: str, language: str = "de") -> str:
+        """Resolve dynamic worksheet name template with placeholders."""
+        import datetime
+        
+        now = datetime.datetime.now()
+        
+        # Month names in different languages
+        month_names = {
+            "de": {
+                1: "Januar", 2: "Februar", 3: "März", 4: "April", 5: "Mai", 6: "Juni",
+                7: "Juli", 8: "August", 9: "September", 10: "Oktober", 11: "November", 12: "Dezember"
+            },
+            "en": {
+                1: "January", 2: "February", 3: "March", 4: "April", 5: "May", 6: "June",
+                7: "July", 8: "August", 9: "September", 10: "October", 11: "November", 12: "December"
+            },
+            "fr": {
+                1: "Janvier", 2: "Février", 3: "Mars", 4: "Avril", 5: "Mai", 6: "Juin",
+                7: "Juillet", 8: "Août", 9: "Septembre", 10: "Octobre", 11: "Novembre", 12: "Décembre"
+            },
+            "es": {
+                1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril", 5: "Mayo", 6: "Junio",
+                7: "Julio", 8: "Agosto", 9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"
+            },
+            "it": {
+                1: "Gennaio", 2: "Febbraio", 3: "Marzo", 4: "Aprile", 5: "Maggio", 6: "Giugno",
+                7: "Luglio", 8: "Agosto", 9: "Settembre", 10: "Ottobre", 11: "Novembre", 12: "Dicembre"
+            }
+        }
+        
+        # Default to German if language not found
+        if language not in month_names:
+            language = "de"
+        
+        # Replace placeholders
+        resolved = worksheet_template
+        resolved = resolved.replace("{month_name}", month_names[language][now.month])
+        resolved = resolved.replace("{year}", str(now.year))
+        resolved = resolved.replace("{month}", f"{now.month:02d}")
+        resolved = resolved.replace("{day}", f"{now.day:02d}")
+        
+        return resolved
+
+    async def _process_payout_tracking(self, usernames: List[str], thread_name: str, guild_id: int) -> Dict:
+        """Process payout tracking for extracted usernames."""
+        cfg = storage.load_guild_config(guild_id)
+        
+        # Get payout configuration
+        sheet_id = self._get_payout_sheet_id(cfg)
+        worksheet_template = self._get_payout_worksheet_name(cfg)
+        user_column = self._get_payout_user_column(cfg)
+        event_row = self._get_payout_event_row(cfg)
+        event_start_column = self._get_payout_event_start_column(cfg)
+        payout_language = self._get_payout_language(cfg)
+        
+        if not all([sheet_id, worksheet_template, user_column, event_row]):
+            _log.warning(f"Incomplete payout configuration for guild {guild_id}")
+            return {
+                "success": False,
+                "message": "Payout-Konfiguration unvollständig",
+                "matched_users": [],
+                "unmatched_users": usernames
+            }
+        
+        # Resolve dynamic worksheet name
+        worksheet_name = self._resolve_worksheet_name(worksheet_template, payout_language)
+        
+        try:
+            # Get Google Sheets client
+            mgr = get_async_gspread_client_manager()
+            agc = await mgr.authorize()
+            ss = await agc.open_by_key(sheet_id)
+            
+            # Try to get the worksheet, create it if it doesn't exist
+            try:
+                ws = await ss.worksheet(worksheet_name)
+                _log.info(f"Using existing worksheet '{worksheet_name}' for guild {guild_id}")
+            except Exception:
+                # Worksheet doesn't exist, create it
+                _log.info(f"Creating new worksheet '{worksheet_name}' for guild {guild_id}")
+                ws = await ss.add_worksheet(worksheet_name, rows=1000, cols=26)
+                
+                # Initialize the worksheet with headers if it's new
+                if event_row == 1:
+                    # Create header row with event names
+                    header_row = [""] * 26  # Start with empty cells
+                    await ws.update([header_row], "A1:Z1")
+            
+            # Get all values from the sheet
+            all_values = await ws.get_all_values()
+            
+            # Convert column letter to index (A=0, B=1, etc.)
+            user_col_index = self._column_letter_to_index(user_column)
+            
+            # Find existing users in the payout sheet
+            existing_users = []
+            for row_idx, row in enumerate(all_values):
+                if len(row) > user_col_index and row[user_col_index].strip():
+                    existing_users.append({
+                        "name": row[user_col_index].strip(),
+                        "row": row_idx + 1  # 1-based row index
+                    })
+            
+            # Match extracted usernames with existing users
+            matched_users = []
+            unmatched_users = []
+            
+            for username in usernames:
+                # Try exact match first
+                exact_match = next((user for user in existing_users if user["name"].lower() == username.lower()), None)
+                if exact_match:
+                    matched_users.append(exact_match)
+                    continue
+                
+                # Try partial match (username contains or is contained in existing name)
+                partial_match = next((user for user in existing_users 
+                                    if username.lower() in user["name"].lower() 
+                                    or user["name"].lower() in username.lower()), None)
+                if partial_match:
+                    matched_users.append(partial_match)
+                    continue
+                
+                # No match found
+                unmatched_users.append(username)
+            
+            # Find next empty column in event row
+            event_row_idx = event_row - 1  # Convert to 0-based
+            if event_row_idx >= len(all_values):
+                # Extend the sheet if needed
+                while len(all_values) <= event_row_idx:
+                    all_values.append([""] * max(len(row) for row in all_values) if all_values else 1)
+            
+            event_row_data = all_values[event_row_idx]
+            
+            # Determine start column for searching
+            start_col = 0  # Default: start from beginning
+            if event_start_column is not None:
+                start_col = event_start_column - 1  # Convert to 0-based
+            
+            # Ensure the row is long enough
+            while len(event_row_data) <= start_col:
+                event_row_data.append("")
+            
+            next_empty_col = len(event_row_data)  # Default: append at end
+            
+            # Find the first empty cell starting from the configured start column
+            for col_idx in range(start_col, len(event_row_data)):
+                if not event_row_data[col_idx].strip():
+                    next_empty_col = col_idx
+                    break
+            
+            # Create new event column
+            event_col_letter = self._column_index_to_letter(next_empty_col)
+            
+            # Write event name (thread name) in the event row
+            await ws.update_cell(event_row, next_empty_col + 1, thread_name)
+            
+            # Mark participation for matched users
+            for user in matched_users:
+                await ws.update_cell(user["row"], next_empty_col + 1, "1")
+            
+            # Create message with start column info if configured
+            message = f"Event '{thread_name}' erstellt in Worksheet '{worksheet_name}' Spalte {event_col_letter}"
+            if event_start_column is not None:
+                start_col_letter = self._column_index_to_letter(event_start_column - 1)
+                message += f" (ab Spalte {start_col_letter})"
+            
+            return {
+                "success": True,
+                "message": message,
+                "matched_users": [user["name"] for user in matched_users],
+                "unmatched_users": unmatched_users,
+                "event_column": event_col_letter,
+                "worksheet_name": worksheet_name
+            }
+            
+        except Exception as e:
+            _log.error(f"Failed to process payout tracking: {e}")
+            return {
+                "success": False,
+                "message": f"Fehler bei der Payout-Verarbeitung: {str(e)}",
+                "matched_users": [],
+                "unmatched_users": usernames
+            }
+
+    @staticmethod
+    def _column_letter_to_index(column: str) -> int:
+        """Convert column letter to 0-based index (A=0, B=1, etc.)."""
+        result = 0
+        for char in column.upper():
+            result = result * 26 + (ord(char) - ord('A') + 1)
+        return result - 1
+
+    @staticmethod
+    def _column_index_to_letter(index: int) -> str:
+        """Convert 0-based index to column letter (0=A, 1=B, etc.)."""
+        result = ""
+        while index >= 0:
+            result = chr(index % 26 + 65) + result
+            index = index // 26 - 1
+        return result
+
     async def _process_image(self, message: discord.Message, image_data: bytes, guild_id: int):
         """Process a single image and extract usernames."""
         cfg = storage.load_guild_config(guild_id)
@@ -149,6 +412,18 @@ class ImageAnalysis(commands.Cog):
         if not usernames:
             _log.info(f"No usernames extracted from image in message {message.id}")
             return
+        
+        # Get the original image URL from the message
+        image_url = None
+        if message.attachments:
+            # Use the first image attachment
+            image_url = message.attachments[0].url
+        elif message.embeds:
+            # Check embeds for images
+            for embed in message.embeds:
+                if embed.image and embed.image.url:
+                    image_url = embed.image.url
+                    break
                 
         # Create interactive embed with buttons
         embed = discord.Embed(
@@ -156,6 +431,11 @@ class ImageAnalysis(commands.Cog):
             description=f"**{len(usernames)} Benutzernamen extrahiert:**\n" + ", ".join(f"`{username}`" for username in usernames),
             color=discord.Color.blue()
         )
+        
+        # Add the original image to the embed if available
+        if image_url:
+            embed.set_image(url=image_url)
+        
         embed.add_field(
             name="📝 Bearbeitung",
             value="Verwende die Buttons unten, um Benutzernamen hinzuzufügen oder zu entfernen, bevor du sie bestätigst.",
@@ -164,7 +444,10 @@ class ImageAnalysis(commands.Cog):
         embed.set_footer(text=f"Analysiert am {message.created_at.strftime('%d.%m.%Y um %H:%M')}")
         
         # Create buttons
-        view = UsernameEditView(self, usernames, message.id)
+        view = UsernameEditView(self, usernames, message.id, message.channel.name, guild_id)
+        
+        # Configure buttons based on permissions
+        await view._configure_buttons_for_user(message.guild)
         
         try:
             # Send interactive message
@@ -188,14 +471,7 @@ class ImageAnalysis(commands.Cog):
             except discord.Forbidden:
                 _log.error(f"Cannot send message to channel {message.channel.id} in guild {guild_id}")
 
-    async def _send_final_usernames(self, interaction: discord.Interaction, usernames: List[str]):
-        """Send the final, confirmed list of usernames."""
-        if not usernames:
-            await interaction.response.send_message("❌ Keine Benutzernamen zum Senden vorhanden.", ephemeral=True)
-            return
-        
-        # Acknowledge the interaction
-        await interaction.response.send_message("✅ Benutzernamen wurden bestätigt!", ephemeral=True)
+
 
     # ------------------------------------------------------------------
     # Event handlers
@@ -309,11 +585,13 @@ class ImageAnalysis(commands.Cog):
 class UsernameEditView(discord.ui.View):
     """Interactive view for editing extracted usernames."""
     
-    def __init__(self, cog: ImageAnalysis, usernames: List[str], original_message_id: int):
+    def __init__(self, cog: ImageAnalysis, usernames: List[str], original_message_id: int, thread_name: str, guild_id: int):
         super().__init__(timeout=300)  # 5 minutes timeout
         self.cog = cog
         self.usernames = usernames.copy()
         self.original_message_id = original_message_id
+        self.thread_name = thread_name
+        self.guild_id = guild_id
 
     @discord.ui.button(label="Bearbeiten", style=discord.ButtonStyle.blurple, emoji="✏️")
     async def edit_usernames(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -323,22 +601,114 @@ class UsernameEditView(discord.ui.View):
     @discord.ui.button(label="Bestätigen", style=discord.ButtonStyle.green, emoji="✅")
     async def confirm_usernames(self, interaction: discord.Interaction, button: discord.ui.Button):
         """Confirm and send the final list of usernames."""
-        await self.cog._send_final_usernames(interaction, self.usernames)
+        # Check if user has permission to confirm
+        guild = interaction.guild
+        if guild is None:
+            await interaction.response.send_message("❌ Dieser Befehl kann nur in einer Guild verwendet werden.", ephemeral=True)
+            return
         
-        # Disable all buttons
+        # Load guild configuration
+        cfg = storage.load_guild_config(guild.id)
+        confirmation_roles = self.cog._get_confirmation_roles(cfg)
+        
+        # Check if user has required roles
+        user_roles = [role.id for role in interaction.user.roles]
+        
+        has_permission = False
+        
+        # Check specific roles - user needs at least ONE of the configured roles
+        if confirmation_roles:
+            # Convert confirmation_roles to integers for comparison
+            confirmation_role_ids = [int(role_id) for role_id in confirmation_roles if str(role_id).isdigit()]
+            has_permission = any(role_id in user_roles for role_id in confirmation_role_ids)
+        else:
+            # If no roles configured, allow everyone (default behavior)
+            has_permission = True
+        
+        if not has_permission:
+            role_names = []
+            for role_id in confirmation_roles:
+                role = guild.get_role(role_id)
+                if role:
+                    role_names.append(role.name)
+            
+            if role_names:
+                await interaction.response.send_message(
+                    f"❌ Du hast keine Berechtigung, Benutzernamen zu bestätigen. "
+                    f"Benötigte Rollen: {', '.join(role_names)}", 
+                    ephemeral=True
+                )
+            else:
+                await interaction.response.send_message(
+                    "❌ Du hast keine Berechtigung, Benutzernamen zu bestätigen.", 
+                    ephemeral=True
+                )
+            return
+        
+        # Immediately disable all buttons to prevent multiple clicks
         for child in self.children:
             child.disabled = True
         
-        # Update the original message
+        # Update the message immediately to show buttons are disabled
+        embed = interaction.message.embeds[0]
+        embed.color = discord.Color.yellow()
+        embed.title = "⏳ Verarbeitung läuft..."
+        embed.description = f"**{len(self.usernames)} Benutzernamen werden verarbeitet...**"
+        embed.remove_field(0)  # Remove the instruction field
+        embed.set_footer(text=f"Analysiert am {interaction.message.created_at.strftime('%d.%m.%Y um %H:%M')} • Wird verarbeitet...")
+        
+        await interaction.message.edit(embed=embed, view=self)
+        
+        # Acknowledge the interaction immediately to avoid timeout
+        await interaction.response.defer(thinking=False)
+        
+        # Process payout tracking in background
+        payout_result = await self.cog._process_payout_tracking(self.usernames, self.thread_name, interaction.guild.id)
+        
+        # Update the original embed with final results
         embed = interaction.message.embeds[0]
         embed.color = discord.Color.green()
         embed.title = "✅ Benutzernamen bestätigt"
         embed.description = f"**{len(self.usernames)} Benutzernamen:**\n" + ", ".join(f"`{username}`" for username in self.usernames)
-        embed.remove_field(0)  # Remove the instruction field
+        
+        # Preserve the original image if it exists
+        original_image = interaction.message.embeds[0].image
+        if original_image and original_image.url:
+            embed.set_image(url=original_image.url)
+        
+        # Add payout tracking results as fields
+        if payout_result["success"]:
+            embed.add_field(
+                name="📊 Payout-Tracking",
+                value=payout_result['message'],
+                inline=False
+            )
+            
+            if payout_result["matched_users"]:
+                embed.add_field(
+                    name=f"✅ Gefundene Benutzer ({len(payout_result['matched_users'])})",
+                    value=", ".join(f"`{user}`" for user in payout_result["matched_users"]),
+                    inline=False
+                )
+            
+            if payout_result["unmatched_users"]:
+                embed.add_field(
+                    name=f"⚠️ Nicht gefunden ({len(payout_result['unmatched_users'])})",
+                    value=", ".join(f"`{user}`" for user in payout_result["unmatched_users"]),
+                    inline=False
+                )
+        else:
+            embed.add_field(
+                name="❌ Payout-Tracking fehlgeschlagen",
+                value=payout_result['message'],
+                inline=False
+            )
+            embed.color = discord.Color.red()
         
         # Update footer to include who confirmed it
         embed.set_footer(text=f"Analysiert am {interaction.message.created_at.strftime('%d.%m.%Y um %H:%M')} • Bestätigt von {interaction.user.display_name}")
         
+        # Update the message with final results
         await interaction.message.edit(embed=embed, view=self)
 
     @discord.ui.button(label="Abbrechen", style=discord.ButtonStyle.red, emoji="❌")
@@ -347,10 +717,21 @@ class UsernameEditView(discord.ui.View):
         await interaction.response.send_message("❌ Bildanalyse abgebrochen.", ephemeral=True)
         await interaction.message.delete()
 
+    async def _configure_buttons_for_user(self, guild: discord.Guild):
+        """Configure buttons based on user permissions."""
+        # This method is kept for future use if needed
+        # For now, we'll handle permissions at button click time
+        pass
+
     async def _update_message(self, interaction: discord.Interaction):
         """Update the message with current usernames."""
         embed = interaction.message.embeds[0]
         embed.description = f"**{len(self.usernames)} Benutzernamen:**\n" + ", ".join(f"`{username}`" for username in self.usernames)
+        
+        # Preserve the image if it exists
+        if not embed.image and interaction.message.embeds[0].image:
+            embed.set_image(url=interaction.message.embeds[0].image.url)
+        
         await interaction.message.edit(embed=embed)
 
 
