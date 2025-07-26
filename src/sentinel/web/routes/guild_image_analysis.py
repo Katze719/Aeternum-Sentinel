@@ -21,6 +21,7 @@ async def get_image_analysis_config(guild_id: int, request: Request):
     return {
         "enabled": cfg.get("image_analysis_enabled", False),
         "channel_id": cfg.get("image_analysis_channel_id"),
+        "second_channel_id": cfg.get("image_analysis_second_channel_id"),
         "gemini_api_key": cfg.get("gemini_api_key", ""),
         "payout_sheet_id": cfg.get("payout_sheet_id", ""),
         "payout_worksheet_name": cfg.get("payout_worksheet_name", ""),
@@ -44,6 +45,9 @@ async def set_image_analysis_config(guild_id: int, request: Request, payload: di
     
     if "channel_id" in payload:
         cfg["image_analysis_channel_id"] = payload["channel_id"]
+    
+    if "second_channel_id" in payload:
+        cfg["image_analysis_second_channel_id"] = payload["second_channel_id"]
     
     if "gemini_api_key" in payload:
         cfg["gemini_api_key"] = payload["gemini_api_key"]
@@ -253,3 +257,4 @@ async def image_analysis_ui(guild_id: int, request: Request):
             "guild": guild,
         },
     ) 
+ 

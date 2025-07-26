@@ -18,6 +18,7 @@ _log = logging.getLogger(__name__)
 # Config keys
 IMAGE_ANALYSIS_ENABLED_KEY = "image_analysis_enabled"
 IMAGE_ANALYSIS_CHANNEL_KEY = "image_analysis_channel_id"
+IMAGE_ANALYSIS_SECOND_CHANNEL_KEY = "image_analysis_second_channel_id"
 GEMINI_API_KEY_KEY = "gemini_api_key"
 PAYOUT_SHEET_KEY = "payout_sheet_id"
 PAYOUT_WORKSHEET_KEY = "payout_worksheet_name"
@@ -55,6 +56,11 @@ class ImageAnalysis(commands.Cog):
     @staticmethod
     def _get_channel_id(cfg: dict) -> Optional[int]:
         channel_id = cfg.get(IMAGE_ANALYSIS_CHANNEL_KEY)
+        return int(channel_id) if channel_id else None
+
+    @staticmethod
+    def _get_second_channel_id(cfg: dict) -> Optional[int]:
+        channel_id = cfg.get(IMAGE_ANALYSIS_SECOND_CHANNEL_KEY)
         return int(channel_id) if channel_id else None
 
     @staticmethod
@@ -395,6 +401,53 @@ class ImageAnalysis(commands.Cog):
 
     async def _process_image(self, message: discord.Message, image_data: bytes, guild_id: int):
         """Process a single image and extract usernames."""
+        # Get the original image URL from the message
+        image_url = None
+        if message.attachments:
+            # Use the first image attachment
+            image_url = message.attachments[0].url
+        elif message.embeds:
+            # Check embeds for images
+            for embed in message.embeds:
+                if embed.image and embed.image.url:
+                    image_url = embed.image.url
+                    break
+        
+        # Create confirmation embed
+        embed = discord.Embed(
+            title="🖼️ Bild zur Analyse gefunden",
+            description="Ein Bild wurde in diesem Thread hochgeladen. Soll eine Text-Extraktion durchgeführt werden?",
+            color=discord.Color.blue()
+        )
+        
+        # Add the original image to the embed if available
+        if image_url:
+            embed.set_image(url=image_url)
+        
+        embed.add_field(
+            name="ℹ️ Was passiert?",
+            value=f"• Ein event mit dem Namen **{message.channel.name}** wird erstellt\n• Benutzernamen werden automatisch extrahiert\n• Du kannst die Liste bearbeiten und bestätigen\n• Die Nutzer werden in die Payoutliste eingetragen",
+            inline=False
+        )
+        embed.set_footer(text=f"Hochgeladen am {message.created_at.strftime('%d.%m.%Y um %H:%M')}")
+        
+        # Create confirmation buttons
+        view = ImageAnalysisConfirmationView(self, message, image_data, guild_id)
+        
+        try:
+            # Send confirmation message
+            confirmation_msg = await message.reply(embed=embed, view=view)
+            
+        except discord.Forbidden:
+            _log.warning(f"Cannot reply to message {message.id} in guild {guild_id}")
+            # Try to send to the channel instead
+            try:
+                confirmation_msg = await message.channel.send(embed=embed, view=view)
+            except discord.Forbidden:
+                _log.error(f"Cannot send message to channel {message.channel.id} in guild {guild_id}")
+
+    async def _analyze_image_and_extract_usernames(self, message: discord.Message, image_data: bytes, guild_id: int):
+        """Actually perform the image analysis and extract usernames."""
         cfg = storage.load_guild_config(guild_id)
         api_key = self._get_gemini_api_key(cfg)
         
@@ -497,10 +550,20 @@ class ImageAnalysis(commands.Cog):
         if not self._is_enabled(cfg):
             return
         
-        # Check if this thread belongs to the configured channel
+        # Check if this thread belongs to one of the configured channels
         channel_id = self._get_channel_id(cfg)
-        if not channel_id or message.channel.parent_id != channel_id:
+        second_channel_id = self._get_second_channel_id(cfg)
+        
+        # Check if thread belongs to either configured channel
+        if not channel_id and not second_channel_id:
             return
+        
+        if channel_id and message.channel.parent_id == channel_id:
+            pass  # First channel matches
+        elif second_channel_id and message.channel.parent_id == second_channel_id:
+            pass  # Second channel matches
+        else:
+            return  # Thread doesn't belong to any configured channel
         
         # Check if message has attachments
         for attachment in message.attachments:
@@ -568,7 +631,7 @@ class ImageAnalysis(commands.Cog):
                         try:
                             image_data = await attachment.read()
                             await self._process_image(message, image_data, guild.id)
-                            await interaction.followup.send("✅ Bild erfolgreich analysiert!", ephemeral=True)
+                            await interaction.followup.send("✅ Bestätigungsnachricht für Bildanalyse gesendet!", ephemeral=True)
                             return
                         except Exception as e:
                             _log.error(f"Failed to process image: {e}")
@@ -580,6 +643,52 @@ class ImageAnalysis(commands.Cog):
         except Exception as e:
             _log.error(f"Error in analyze_image command: {e}")
             await interaction.followup.send(f"❌ Fehler beim Analysieren: {str(e)}", ephemeral=True)
+
+
+class ImageAnalysisConfirmationView(discord.ui.View):
+    """Confirmation view for image analysis."""
+    
+    def __init__(self, cog: ImageAnalysis, message: discord.Message, image_data: bytes, guild_id: int):
+        super().__init__(timeout=300)  # 5 minutes timeout
+        self.cog = cog
+        self.message = message
+        self.image_data = image_data
+        self.guild_id = guild_id
+
+    @discord.ui.button(label="Ja, analysieren", style=discord.ButtonStyle.green, emoji="✅")
+    async def confirm_analysis(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Confirm image analysis."""
+        # Disable all buttons immediately
+        for child in self.children:
+            child.disabled = True
+        
+        # Update the message to show processing
+        embed = interaction.message.embeds[0]
+        embed.color = discord.Color.yellow()
+        embed.title = "⏳ Analyse läuft..."
+        embed.description = "Nutzer werden extrahiert..."
+        embed.remove_field(0)  # Remove the info field
+        embed.set_footer(text=f"Hochgeladen am {self.message.created_at.strftime('%d.%m.%Y um %H:%M')} • Wird analysiert...")
+        
+        await interaction.message.edit(embed=embed, view=self)
+        
+        # Acknowledge the interaction immediately
+        await interaction.response.defer(thinking=False)
+        
+        # Perform the actual analysis
+        await self.cog._analyze_image_and_extract_usernames(self.message, self.image_data, self.guild_id)
+        
+        # Delete the confirmation message after analysis
+        try:
+            await interaction.message.delete()
+        except discord.Forbidden:
+            _log.warning(f"Cannot delete confirmation message {interaction.message.id}")
+
+    @discord.ui.button(label="Nein, abbrechen", style=discord.ButtonStyle.red, emoji="❌")
+    async def cancel_analysis(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Cancel image analysis."""
+        await interaction.response.send_message("❌ Bildanalyse abgebrochen.", ephemeral=True)
+        await interaction.message.delete()
 
 
 class UsernameEditView(discord.ui.View):
@@ -771,3 +880,4 @@ class EditUsernamesModal(discord.ui.Modal, title="Benutzernamen bearbeiten"):
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(ImageAnalysis(bot)) 
+ 
