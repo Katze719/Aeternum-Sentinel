@@ -159,6 +159,30 @@
                         können. Leer lassen, um allen zu erlauben.</p>
                 </div>
 
+                <hr class="my-4">
+
+                <!-- Team Statistics Sheet Configuration -->
+                <h4 class="title is-5">📊 Team Statistics Sheet</h4>
+                <p class="help mb-4">Konfiguriere das Google Sheet für strukturierte Team-Statistiken Tabellen</p>
+
+                <!-- Team Stats Sheet ID -->
+                <div class="field">
+                    <label class="label">Team Stats Sheet-ID</label>
+                    <div class="control">
+                        <input class="input" type="text" id="teamStatsSheetId" placeholder="1abcDEF...">
+                    </div>
+                    <p class="help">Google Sheet-ID für Team-Statistiken Tabellen</p>
+                </div>
+
+                <!-- Team Stats Worksheet Name -->
+                <div class="field">
+                    <label class="label">Team Stats Worksheet Name</label>
+                    <div class="control">
+                        <input class="input" type="text" id="teamStatsWorksheet" placeholder="Team Statistics">
+                    </div>
+                    <p class="help">Name des Worksheets für Team-Statistiken Tabellen</p>
+                </div>
+
                 <!-- Save Button -->
                 <div class="field">
                     <div class="control">
@@ -292,6 +316,35 @@
                     </li>
                 </ul>
             </div>
+
+            <div class="notification is-info mt-4">
+                <p><strong>📊 Team Statistics Tabellen:</strong></p>
+                <ul class="mt-2">
+                    <li>• <strong>Neuer Befehl:</strong>
+                        <code>/create_team_stats [stats_url] [composition_url] [enemy_stats_url]</code>
+                    </li>
+                    <li>• <strong>Bild-URLs:</strong> Team-Statistiken, Team-Zusammensetzung und Gegner-Statistiken
+                        (alle erforderlich)</li>
+                    <li>• <strong>Beispiel:</strong>
+                        <code>/create_team_stats https://example.com/stats.png https://example.com/groups.png https://example.com/enemy.png</code>
+                    </li>
+                    <li>• <strong>Automatische Verarbeitung:</strong> Der Bot lädt die Bilder herunter und analysiert
+                        sie mit Gemini AI</li>
+                    <li>• <strong>Strukturierte Tabellen:</strong> Erstellt automatisch formatierte Tabellen im Google
+                        Sheet</li>
+                    <li>• <strong>Event-basierte Organisation:</strong> Jede Tabelle wird mit dem Thread-Namen als
+                        Event-Header versehen</li>
+                    <li>• <strong>Team-Statistiken:</strong> Spieler-Statistiken (Kills, Deaths, Assists, Healing,
+                        Damage)</li>
+                    <li>• <strong>Gegner-Statistiken:</strong> Gegner-Spieler-Statistiken für Vergleich</li>
+                    <li>• <strong>Gruppen-Statistiken:</strong> Aggregierte Statistiken pro Gruppe</li>
+                    <li>• <strong>Gesamtvergleich:</strong> Team vs. Gegner Gesamtstatistiken</li>
+                    <li>• <strong>Team-Zusammensetzung:</strong> Übersichtliche Darstellung der Gruppen und Spieler</li>
+                    <li>• <strong>Flexible Konfiguration:</strong> Separate Google Sheet-Konfiguration für
+                        Team-Statistiken</li>
+                    <li>• <strong>Überall verwendbar:</strong> Funktioniert in jedem Kanal, nicht nur in Threads</li>
+                </ul>
+            </div>
         </div>
     </div>
 </div>
@@ -318,6 +371,8 @@
             document.getElementById('payoutUserColumn').value = config.payout_user_column || '';
             document.getElementById('payoutEventRow').value = config.payout_event_row || '';
             document.getElementById('payoutEventStartColumn').value = config.payout_event_start_column || '';
+            document.getElementById('teamStatsSheetId').value = config.team_stats_sheet_id || '';
+            document.getElementById('teamStatsWorksheet').value = config.team_stats_worksheet_name || '';
 
             // Load confirmation roles
             await loadRoles(config.confirmation_roles || []);
@@ -508,6 +563,8 @@
         const payoutUserColumn = document.getElementById('payoutUserColumn').value;
         const payoutEventRow = document.getElementById('payoutEventRow').value;
         const payoutEventStartColumn = document.getElementById('payoutEventStartColumn').value;
+        const teamStatsSheetId = document.getElementById('teamStatsSheetId').value;
+        const teamStatsWorksheet = document.getElementById('teamStatsWorksheet').value;
         // Get selected roles from Choices.js
         const confirmationRolesSelect = document.getElementById('confirmationRoles');
         let confirmationRoles = [];
@@ -538,6 +595,8 @@
                     payout_event_row: payoutEventRow ? parseInt(payoutEventRow) : null,
                     payout_event_start_column: payoutEventStartColumn || null,
                     confirmation_roles: confirmationRoles,
+                    team_stats_sheet_id: teamStatsSheetId || null,
+                    team_stats_worksheet_name: teamStatsWorksheet || null,
                 }),
             });
 

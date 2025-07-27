@@ -30,6 +30,8 @@ async def get_image_analysis_config(guild_id: int, request: Request):
         "payout_event_start_column": cfg.get("payout_event_start_column", ""),
         "payout_language": cfg.get("payout_language", "de"),
         "confirmation_roles": cfg.get("confirmation_roles", []),
+        "team_stats_sheet_id": cfg.get("team_stats_sheet_id", ""),
+        "team_stats_worksheet_name": cfg.get("team_stats_worksheet_name", ""),
     }
 
 @router.post("/guilds/{guild_id}/image-analysis")
@@ -73,6 +75,12 @@ async def set_image_analysis_config(guild_id: int, request: Request, payload: di
     
     if "confirmation_roles" in payload:
         cfg["confirmation_roles"] = payload["confirmation_roles"]
+    
+    if "team_stats_sheet_id" in payload:
+        cfg["team_stats_sheet_id"] = payload["team_stats_sheet_id"]
+    
+    if "team_stats_worksheet_name" in payload:
+        cfg["team_stats_worksheet_name"] = payload["team_stats_worksheet_name"]
     
     storage.save_guild_config(guild_id, cfg)
     return {"status": "ok"}
