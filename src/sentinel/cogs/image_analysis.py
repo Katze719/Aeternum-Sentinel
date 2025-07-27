@@ -1309,6 +1309,50 @@ class UsernameEditView(discord.ui.View):
     @discord.ui.button(label="Bearbeiten", style=discord.ButtonStyle.blurple, emoji="✏️")
     async def edit_usernames(self, interaction: discord.Interaction, button: discord.ui.Button):
         """Edit usernames via modal."""
+        # Check if user has permission to edit
+        guild = interaction.guild
+        if guild is None:
+            await interaction.response.send_message("❌ Dieser Befehl kann nur in einer Guild verwendet werden.", ephemeral=True)
+            return
+        
+        # Load guild configuration
+        cfg = storage.load_guild_config(guild.id)
+        confirmation_roles = self.cog._get_confirmation_roles(cfg)
+        
+        # Check if user has required roles
+        user_roles = [role.id for role in interaction.user.roles]
+        
+        has_permission = False
+        
+        # Check specific roles - user needs at least ONE of the configured roles
+        if confirmation_roles:
+            # Convert confirmation_roles to integers for comparison
+            confirmation_role_ids = [int(role_id) for role_id in confirmation_roles if str(role_id).isdigit()]
+            has_permission = any(role_id in user_roles for role_id in confirmation_role_ids)
+        else:
+            # If no roles configured, allow everyone (default behavior)
+            has_permission = True
+        
+        if not has_permission:
+            role_names = []
+            for role_id in confirmation_roles:
+                role = guild.get_role(role_id)
+                if role:
+                    role_names.append(role.name)
+            
+            if role_names:
+                await interaction.response.send_message(
+                    f"❌ Du hast keine Berechtigung, Benutzernamen zu bearbeiten. "
+                    f"Benötigte Rollen: {', '.join(role_names)}", 
+                    ephemeral=True
+                )
+            else:
+                await interaction.response.send_message(
+                    "❌ Du hast keine Berechtigung, Benutzernamen zu bearbeiten.", 
+                    ephemeral=True
+                )
+            return
+        
         await interaction.response.send_modal(EditUsernamesModal(self))
 
     @discord.ui.button(label="Bestätigen", style=discord.ButtonStyle.green, emoji="✅")
