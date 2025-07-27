@@ -15,6 +15,10 @@ $text-light-color: #ffffff;
 $placeholder-color: #a0a0a0;
 $disabled-color: #777777;
 
+* {
+    color-scheme: dark;
+}
+
 html {
     background-color: $bg-dark-color;
     min-height: 100vh;

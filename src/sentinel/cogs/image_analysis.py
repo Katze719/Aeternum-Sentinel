@@ -340,26 +340,47 @@ class ImageAnalysis(commands.Cog):
             while len(event_row_data) <= start_col:
                 event_row_data.append("")
             
-            next_empty_col = len(event_row_data)  # Default: append at end
-            
-            # Find the first empty cell starting from the configured start column
+            # First, check if an event with the same name already exists
+            existing_event_col = None
             for col_idx in range(start_col, len(event_row_data)):
-                if not event_row_data[col_idx].strip():
-                    next_empty_col = col_idx
+                if event_row_data[col_idx].strip() == thread_name:
+                    existing_event_col = col_idx
                     break
             
-            # Create new event column
-            event_col_letter = self._column_index_to_letter(next_empty_col)
-            
-            # Write event name (thread name) in the event row
-            await ws.update_cell(event_row, next_empty_col + 1, thread_name)
+            if existing_event_col is not None:
+                # Event already exists, use existing column
+                event_col_letter = self._column_index_to_letter(existing_event_col)
+                _log.info(f"Event '{thread_name}' already exists in column {event_col_letter} for guild {guild_id}")
+            else:
+                # Event doesn't exist, find next empty column and create new event
+                next_empty_col = len(event_row_data)  # Default: append at end
+                
+                # Find the first empty cell starting from the configured start column
+                for col_idx in range(start_col, len(event_row_data)):
+                    if not event_row_data[col_idx].strip():
+                        next_empty_col = col_idx
+                        break
+                
+                # Create new event column
+                event_col_letter = self._column_index_to_letter(next_empty_col)
+                
+                # Write event name (thread name) in the event row
+                await ws.update_cell(event_row, next_empty_col + 1, thread_name)
+                _log.info(f"Created new event '{thread_name}' in column {event_col_letter} for guild {guild_id}")
             
             # Mark participation for matched users
+            # Use the correct column (either existing or new)
+            target_col = existing_event_col if existing_event_col is not None else next_empty_col
+            
             for user in matched_users:
-                await ws.update_cell(user["row"], next_empty_col + 1, "1")
+                await ws.update_cell(user["row"], target_col + 1, "1")
             
             # Create message with start column info if configured
-            message = f"Event '{thread_name}' erstellt in Worksheet '{worksheet_name}' Spalte {event_col_letter}"
+            if existing_event_col is not None:
+                message = f"Event '{thread_name}' bereits vorhanden in Worksheet '{worksheet_name}' Spalte {event_col_letter}"
+            else:
+                message = f"Event '{thread_name}' erstellt in Worksheet '{worksheet_name}' Spalte {event_col_letter}"
+            
             if event_start_column is not None:
                 start_col_letter = self._column_index_to_letter(event_start_column - 1)
                 message += f" (ab Spalte {start_col_letter})"
@@ -426,7 +447,7 @@ class ImageAnalysis(commands.Cog):
         
         embed.add_field(
             name="ℹ️ Was passiert?",
-            value=f"• Ein event mit dem Namen **{message.channel.name}** wird erstellt\n• Benutzernamen werden automatisch extrahiert\n• Du kannst die Liste bearbeiten und bestätigen\n• Die Nutzer werden in die Payoutliste eingetragen",
+            value=f"• Ein event mit dem Namen **{message.channel.name}** wird erstellt oder verwendet\n• Benutzernamen werden automatisch extrahiert\n• Du kannst die Liste bearbeiten und bestätigen\n• Die Nutzer werden in die Payoutliste eingetragen",
             inline=False
         )
         embed.set_footer(text=f"Hochgeladen am {message.created_at.strftime('%d.%m.%Y um %H:%M')}")
@@ -649,7 +670,7 @@ class ImageAnalysisConfirmationView(discord.ui.View):
     """Confirmation view for image analysis."""
     
     def __init__(self, cog: ImageAnalysis, message: discord.Message, image_data: bytes, guild_id: int):
-        super().__init__(timeout=300)  # 5 minutes timeout
+        super().__init__(timeout=259200) 
         self.cog = cog
         self.message = message
         self.image_data = image_data
@@ -695,7 +716,7 @@ class UsernameEditView(discord.ui.View):
     """Interactive view for editing extracted usernames."""
     
     def __init__(self, cog: ImageAnalysis, usernames: List[str], original_message_id: int, thread_name: str, guild_id: int):
-        super().__init__(timeout=300)  # 5 minutes timeout
+        super().__init__(timeout=259200) 
         self.cog = cog
         self.usernames = usernames.copy()
         self.original_message_id = original_message_id
@@ -778,7 +799,7 @@ class UsernameEditView(discord.ui.View):
         embed = interaction.message.embeds[0]
         embed.color = discord.Color.green()
         embed.title = "✅ Benutzernamen bestätigt"
-        embed.description = f"**{len(self.usernames)} Benutzernamen:**\n" + ", ".join(f"`{username}`" for username in self.usernames)
+        embed.description = f"Die Benutzernamen ({len(self.usernames)}) wurden erfolgreich bestätigt und in die Payout-Tabelle eingetragen."
         
         # Preserve the original image if it exists
         original_image = interaction.message.embeds[0].image
@@ -795,14 +816,14 @@ class UsernameEditView(discord.ui.View):
             
             if payout_result["matched_users"]:
                 embed.add_field(
-                    name=f"✅ Gefundene Benutzer ({len(payout_result['matched_users'])})",
+                    name=f"✅ Gefundene / Eingetragene Benutzer ({len(payout_result['matched_users'])})",
                     value=", ".join(f"`{user}`" for user in payout_result["matched_users"]),
                     inline=False
                 )
             
             if payout_result["unmatched_users"]:
                 embed.add_field(
-                    name=f"⚠️ Nicht gefunden ({len(payout_result['unmatched_users'])})",
+                    name=f"⚠️ Nicht Gefunden / Eingetragene Benutzer ({len(payout_result['unmatched_users'])})",
                     value=", ".join(f"`{user}`" for user in payout_result["unmatched_users"]),
                     inline=False
                 )
