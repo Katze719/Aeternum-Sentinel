@@ -573,7 +573,7 @@ class ImageAnalysis(commands.Cog):
                     # Create row data with empty cells except for the target column
                     row_data = [""] * (max_col + 1)
                     for col, value in col_updates.items():
-                        row_data[col] = value
+                        row_data[col] = 1  # Use integer 1 instead of string "1"
                     
                     # Update the row
                     range_name = f"{self._column_index_to_letter(min_col)}{row}:{self._column_index_to_letter(max_col)}{row}"
