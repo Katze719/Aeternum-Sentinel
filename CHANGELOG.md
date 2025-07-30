@@ -1,3 +1,26 @@
+# 🚀 v1.0.1 – Rollen-Auswahl Verbesserungen
+
+**Veröffentlicht:** 2025-01-27
+
+## 🎯 Rollen-Auswahl in Bildanalyse verbessert
+
+### ✨ **Neue Features**
+- **Zweite optionale Rolle:** Wenn eine erste Rolle ausgewählt wird, erscheint ein zweites Rollen-Feld für zusätzliche Berechtigungen
+- **Konsistente Benutzeroberfläche:** Rollen-Auswahl funktioniert jetzt wie die Kanal-Auswahl - als einfaches Dropdown ohne Choices.js
+- **Verbesserte Rollen-ID-Behandlung:** Robuste Konvertierung zwischen String- und Integer-Rollen-IDs für bessere Kompatibilität
+
+### 🔧 **Technische Verbesserungen**
+- **Frontend:** Rollen-Auswahl von Choices.js auf einfaches Select-Feld umgestellt
+- **Backend:** Rollen-IDs werden konsistent als Strings gespeichert und übertragen
+- **Fehlerbehandlung:** Verbesserte Fehlerbehandlung beim Laden und Speichern von Rollen-Konfigurationen
+
+### 🐛 **Bugfixes**
+- **Rollen-Persistierung:** Rollen werden beim Laden der Seite korrekt ausgewählt angezeigt
+- **Berechtigungsprüfung:** Rollen-basierte Berechtigungen funktionieren weiterhin korrekt
+- **UI-Konsistenz:** Rollen-Auswahl verhält sich jetzt identisch zur Kanal-Auswahl
+
+---
+
 # 🚀 v1.0.0 – Das große Release!
 
 **Veröffentlicht:** 2025-07-26
