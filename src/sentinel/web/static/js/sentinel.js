@@ -1,5 +1,8 @@
 import { showToast, toastTypes } from './show_toast.js';
 
+window.showToast = showToast;
+window.toastTypes = toastTypes;
+
 document.addEventListener('DOMContentLoaded', () => {
     // Toast handling
     const params = new URLSearchParams(window.location.search);
@@ -23,6 +26,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // Activate Choices.js on any select with data-choices attribute
     document.querySelectorAll('select[data-choices]').forEach((choiceElement) => {
         // eslint-disable-next-line no-undef
-        new Choices(choiceElement, { searchEnabled: true, itemSelectText: '' });
+        new Choices(choiceElement, { searchEnabled: true, itemSelectText: '', renderSelectedChoices: 'always', removeItemButton: true });
     });
 }); 

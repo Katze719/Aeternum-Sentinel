@@ -53,6 +53,55 @@ class Utility(commands.Cog):
         )
         await interaction.response.send_message(embed=embed)
 
+    @app_commands.command(name="changelog", description="Zeige den neuesten Changelog-Eintrag als Embed.")
+    async def changelog(self, interaction: discord.Interaction):
+        """Sendet den neuesten Changelog-Eintrag als Discord Embed."""
+        import pathlib
+        changelog_path = pathlib.Path(__file__).parent.parent.parent.parent / "CHANGELOG.md"
+        try:
+            with changelog_path.open("r", encoding="utf-8") as f:
+                content = f.read()
+        except Exception as exc:
+            await interaction.response.send_message(f"Fehler beim Laden des Changelogs: {exc}", ephemeral=True)
+            return
+
+        # Finde den neuesten Changelog-Eintrag (alles bis zur nächsten # Überschrift)
+        lines = content.splitlines()
+        latest_changelog = []
+        in_latest = False
+        
+        for line in lines:
+            # Wenn wir eine neue Hauptüberschrift finden (nach dem ersten), stoppen wir
+            if line.startswith('# ') and in_latest:
+                break
+            elif line.startswith('# '):
+                in_latest = True
+            
+            if in_latest:
+                latest_changelog.append(line)
+        
+        # Konvertiere zurück zu Text
+        latest_content = '\n'.join(latest_changelog)
+        
+        # Extrahiere Version und Titel aus der ersten Zeile
+        title_line = latest_changelog[0] if latest_changelog else ""
+        version_match = title_line.split('–') if '–' in title_line else title_line.split('-')
+        version = version_match[0].strip('# ') if version_match else "v1.0.1"
+        title = version_match[1].strip() if len(version_match) > 1 else "Changelog"
+        
+        # Discord Embeds haben ein Limit von 4096 Zeichen pro Embed-Description
+        if len(latest_content) > 4096:
+            # Kürze den Inhalt und füge "..." hinzu
+            latest_content = latest_content[:4093] + "..."
+        
+        embed = discord.Embed(
+            title=f"🦄 {title}",
+            description=latest_content,
+            color=discord.Color.purple(),
+        )
+        
+        await interaction.response.send_message(embed=embed)
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Utility(bot)) 

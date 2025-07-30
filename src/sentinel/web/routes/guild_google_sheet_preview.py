@@ -9,8 +9,8 @@ router = APIRouter(tags=["google-sheet"])
 
 
 @router.get("/guilds/{guild_id}/google-sheet/preview")
-async def preview_google_sheet(guild_id: int, request: Request, max_rows: int = 30):
-    """Return the first *max_rows* rows of the configured Google Sheet."""
+async def preview_google_sheet(guild_id: int, request: Request):
+    """Return all rows of the configured Google Sheet."""
 
     # Reuse existing admin check
     from .auth_utils import require_admin  # local import to avoid cycle
@@ -22,17 +22,21 @@ async def preview_google_sheet(guild_id: int, request: Request, max_rows: int = 
         raise HTTPException(status_code=404, detail="Google Sheet not configured for guild")
 
     sheet_id: str = cfg.get("sheet_id")  # type: ignore
-    worksheet_name: str | None = cfg.get("worksheet_name")  # type: ignore
+    # Allow overriding via query param ?worksheet=..
+    worksheet_name = request.query_params.get("worksheet") or cfg.get("worksheet_name")  # type: ignore
 
-    if not sheet_id:
-        raise HTTPException(status_code=400, detail="sheet_id missing in configuration")
+    if not sheet_id or not worksheet_name:
+        raise HTTPException(status_code=400, detail="sheet_id and worksheet_name required")
 
-    mgr = get_async_gspread_client_manager()
-    agc = await mgr.authorize()
-    ss = await agc.open_by_key(sheet_id)
-    ws = await ss.worksheet(worksheet_name) if worksheet_name else await ss.get_worksheet(0)
+    try:
+        mgr = get_async_gspread_client_manager()
+        agc = await mgr.authorize()
+        ss = await agc.open_by_key(sheet_id)
+        ws = await ss.worksheet(worksheet_name)
 
-    values = await ws.get_all_values()
-    values = values[:max_rows]
+        values = await ws.get_all_values()
+    except Exception as exc:
+        # Return clear error for UI
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
-    return {"values": values} 
+    return {"values": values}

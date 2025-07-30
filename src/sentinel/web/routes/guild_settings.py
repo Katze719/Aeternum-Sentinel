@@ -45,6 +45,10 @@ async def guild_settings(guild_id: int, request: Request):
 
     sheet_cfg = cfg.get("google_sheet", {})
 
+    review_message = cfg.get("review_message", "")
+
+    vod_link = cfg.get("vod_link", "")
+
     voice_channel_names = {str(ch['id']): ch['name'] for ch in voice_channels}
     category_names = {str(cat['id']): cat['name'] for cat in categories}
 
@@ -66,5 +70,7 @@ async def guild_settings(guild_id: int, request: Request):
             "voice_channel_names": voice_channel_names,
             "category_names": category_names,
             "sheet_cfg": sheet_cfg,
+            "review_message": review_message,
+            "vod_link": vod_link,
         },
     ) 

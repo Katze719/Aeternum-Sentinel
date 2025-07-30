@@ -8,16 +8,26 @@ $bg-card-color: #36393f;
 $bg-elevated-color: #202225;
 $text-normal-color: #dcddde;
 $accent-color: #ff4f4f;
+$rule-green: #4fd47a;
 
 // Additional color variables
 $text-light-color: #ffffff;
 $placeholder-color: #a0a0a0;
 $disabled-color: #777777;
 
+* {
+    color-scheme: dark;
+}
+
+html {
+    background-color: $bg-dark-color;
+    min-height: 100vh;
+}
+
 body {
     background-color: $bg-dark-color;
     color: $text-normal-color;
-    height: 100vh;
+    min-height: 100vh;
 }
 
 .card {
@@ -52,10 +62,22 @@ body {
 }
 
 .input,
-.select select {
+.select select,
+.textarea {
     background-color: $bg-elevated-color;
     border-color: $bg-card-color;
     color: $text-normal-color;
+}
+
+.input[disabled],
+.select select:disabled,
+.textarea[disabled],
+textarea[disabled] {
+    background-color: $bg-elevated-color !important;
+    border-color: $bg-card-color !important;
+    color: $disabled-color !important;
+    opacity: 0.6;
+    cursor: not-allowed;
 }
 
 .table {
@@ -115,9 +137,18 @@ hr {
 }
 
 .input::placeholder,
+.textarea::placeholder,
 textarea::placeholder {
     color: $placeholder-color;
     opacity: 1;
+}
+
+// Focus states for form controls
+.input:focus,
+.textarea:focus,
+textarea:focus {
+    border-color: $accent-color !important;
+    box-shadow: 0 0 0 0.125em rgba(255, 79, 79, 0.25) !important;
 }
 
 // Increase contrast for helper text below form controls
@@ -150,6 +181,14 @@ textarea::placeholder {
 
     .choices__item--disabled {
         color: $disabled-color !important;
+    }
+
+    // Mark selected options with a check-mark but keep them visible in the list
+    .choices__item.is-selected::after {
+        content: "\2713"; // ✓
+        float: right;
+        color: $accent-color;
+        font-weight: 700;
     }
 
     // Search field inside dropdown
@@ -187,4 +226,197 @@ textarea::placeholder {
 
 .choices__list--single {
     line-height: 1.5 !important;
+}
+
+// ------------------------------------------------------------------
+// Google-Sheet preview grid styling
+// ------------------------------------------------------------------
+
+.sheet-preview {
+    border-collapse: collapse;
+
+    width: max-content;
+    max-width: none;
+
+    th,
+    td {
+        border: 1px solid lighten($bg-elevated-color, 10%);
+        padding: 4px 6px;
+        min-width: 90px;
+        white-space: nowrap;
+    }
+
+    thead th {
+        background-color: darken($bg-card-color, 5%);
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        font-weight: 600;
+    }
+
+    tbody th {
+        background-color: darken($bg-card-color, 5%);
+        color: $text-light-color;
+        position: sticky;
+        left: 0;
+        z-index: 1;
+        font-weight: 600;
+    }
+
+    tbody tr:nth-child(odd) td {
+        background-color: $bg-card-color;
+    }
+
+    tbody tr:nth-child(even) td {
+        background-color: $bg-elevated-color;
+    }
+}
+
+.box {
+    background-color: $bg-card-color;
+    color: $text-normal-color;
+    border: none;
+    border-radius: 8px;
+}
+
+// Light variants on dark background ------------------------------------------------
+.button.is-light {
+    background-color: lighten($bg-elevated-color, 8%) !important;
+    color: $text-normal-color !important;
+    border-color: $bg-elevated-color !important;
+
+    &:hover {
+        filter: brightness(1.15);
+    }
+}
+
+// Override Bulma light modifiers while keeping accent border for link/info
+.button.is-link.is-light,
+.button.is-info.is-light {
+    background-color: lighten($bg-elevated-color, 8%) !important;
+    color: $text-normal-color !important;
+}
+
+// Code blocks ---------------------------------------------------------------------
+code,
+pre {
+    background-color: $bg-elevated-color;
+    color: $text-normal-color;
+}
+
+// Notifications ---------------------------------------------------------------------
+.notification {
+    background-color: $bg-elevated-color;
+    color: $text-normal-color;
+    border: 1px solid $bg-card-color;
+
+    &.is-info {
+        background-color: rgba(79, 212, 122, 0.1);
+        border-color: rgba(79, 212, 122, 0.3);
+        color: $text-normal-color;
+    }
+
+    &.is-success {
+        background-color: rgba(79, 212, 122, 0.1);
+        border-color: rgba(79, 212, 122, 0.3);
+        color: $text-normal-color;
+    }
+
+    &.is-warning {
+        background-color: rgba(255, 193, 7, 0.1);
+        border-color: rgba(255, 193, 7, 0.3);
+        color: $text-normal-color;
+    }
+
+    &.is-danger {
+        background-color: rgba(255, 79, 79, 0.1);
+        border-color: rgba(255, 79, 79, 0.3);
+        color: $text-normal-color;
+    }
+
+    // // Override Bulma's light variants to ensure dark theme
+    // &.is-light {
+    //     background-color: $bg-elevated-color !important;
+    //     color: $text-normal-color !important;
+    //     border-color: $bg-card-color !important;
+    // }
+
+    // // Specific overrides for light variants
+    // &.is-info.is-light {
+    //     background-color: rgba(79, 212, 122, 0.1) !important;
+    //     border-color: rgba(79, 212, 122, 0.3) !important;
+    //     color: $text-normal-color !important;
+    // }
+
+    // &.is-success.is-light {
+    //     background-color: rgba(79, 212, 122, 0.1) !important;
+    //     border-color: rgba(79, 212, 122, 0.3) !important;
+    //     color: $text-normal-color !important;
+    // }
+
+    // &.is-warning.is-light {
+    //     background-color: rgba(255, 193, 7, 0.1) !important;
+    //     border-color: rgba(255, 193, 7, 0.3) !important;
+    //     color: $text-normal-color !important;
+    // }
+
+    // &.is-danger.is-light {
+    //     background-color: rgba(255, 79, 79, 0.1) !important;
+    //     border-color: rgba(255, 79, 79, 0.3) !important;
+    //     color: $text-normal-color !important;
+    // }
+}
+
+// Context menu for sheet preview
+.sheet-context {
+    position: absolute;
+    background-color: $bg-elevated-color;
+    border: 1px solid $bg-card-color;
+    border-radius: 4px;
+    z-index: 1000;
+    min-width: 240px;
+
+    .dropdown-item {
+        display: block;
+        padding: 6px 10px;
+        color: $text-normal-color;
+        cursor: pointer;
+
+        &:hover {
+            background-color: $bg-card-color;
+        }
+    }
+}
+
+.sheet-preview td.cell-mapped {
+    background-color: rgba(red($accent-color), green($accent-color), blue($accent-color), 0.25) !important;
+}
+
+.sheet-preview td.cell-anchor {
+    background-color: $accent-color !important;
+    color: $bg-dark-color !important;
+    font-weight: 700;
+}
+
+.sheet-preview td:hover {
+    background-color: lighten($accent-color, 15%) !important;
+    color: $bg-dark-color !important;
+    cursor: pointer;
+}
+
+.sheet-preview th.rule-mapped,
+.sheet-preview td.rule-mapped {
+    background-color: rgba(red($rule-green), green($rule-green), blue($rule-green), 0.22) !important;
+    color: $text-normal-color !important;
+}
+
+// ------------------------------------------------------------
+// Guild Sheet Page layout tweaks
+// ------------------------------------------------------------
+
+.sheet-page {
+    margin-left: -50vw !important;
+    margin-right: -50vw !important;
+    padding-left: 50vw !important;
+    padding-right: 50vw !important;
 }

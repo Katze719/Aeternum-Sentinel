@@ -181,24 +181,83 @@
                     <input class="input" type="text" id="sheet_id" placeholder="1abcDEF...">
                 </div>
             </div>
-            <div class="field">
-                <label class="label">Worksheet-Name (optional)</label>
-                <div class="control">
-                    <input class="input" type="text" id="worksheet_name" placeholder="Sheet1">
-                </div>
-            </div>
             <div class="field is-grouped">
                 <div class="control">
                     <button class="button is-primary" type="submit">Speichern</button>
                 </div>
                 <div class="control">
-                    <button id="preview_sheet" class="button is-link is-light" type="button">Sheet anzeigen</button>
+                    <button id="test_conn" class="button is-info is-light" type="button">Verbindung testen</button>
+                </div>
+                <div class="control">
+                    <a href="/guilds/{{ guild.id }}/sheet" class="button is-link is-light">Sheet-Konfigurieren</a>
                 </div>
             </div>
-            <p class="help">Der Service-Account muss Schreibzugriff auf das Dokument haben.</p>
-
-            <div id="sheet_preview" style="overflow:auto; max-height:400px; margin-top:1rem;"></div>
+            <p class="help">Service-Account wird serverseitig gesetzt. Vorschau: Klick auf "Sheet-Konfigurieren".</p>
         </form>
+    </div>
+</div>
+
+<div class="card mb-6">
+    <header class="card-header">
+        <p class="card-header-title">Review-Nachricht</p>
+    </header>
+    <div class="card-content">
+        <form id="reviewMsgForm" style="max-width:600px">
+            <div class="field">
+                <label class="label">
+                    Text, der vom <code>/review</code>-Befehl gesendet wird (<code>!review</code>)
+                </label>
+                <div class="control">
+                    <textarea class="textarea" id="review_message" rows="4" placeholder="Nachricht"
+                        required>{{ review_message }}</textarea>
+                </div>
+            </div>
+            <div class="field">
+                <div class="control">
+                    <button class="button is-primary" type="submit">Speichern</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card mb-6">
+    <header class="card-header">
+        <p class="card-header-title">VOD Formular-Link</p>
+    </header>
+    <div class="card-content">
+        <form id="vodLinkForm" style="max-width:600px">
+            <div class="field">
+                <label class="label">
+                    Google-Formular-Link, der per <code>/vod</code> (!vod) gesendet wird
+                </label>
+                <div class="control">
+                    <input class="input" type="url" id="vod_link" placeholder="https://docs.google.com/forms/..."
+                        value="{{ vod_link }}" required>
+                </div>
+            </div>
+            <div class="field">
+                <div class="control">
+                    <button class="button is-primary" type="submit">Speichern</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card mb-6">
+    <header class="card-header">
+        <p class="card-header-title">🔍 Bildanalyse</p>
+    </header>
+    <div class="card-content">
+        <p class="mb-3">Automatische Analyse von Bildern zur Extraktion von Benutzernamen mit Gemini AI</p>
+        <div class="field">
+            <div class="control">
+                <a href="/guilds/{{ guild.id }}/image-analysis-ui" class="button is-info">
+                    Bildanalyse konfigurieren
+                </a>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -238,7 +297,7 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name_format: fmt })
         });
-        alert('Format gespeichert');
+        window.showToast('Format gespeichert', window.toastTypes.INFO);
         submitBtn.classList.remove('is-loading');
         submitBtn.disabled = false;
     });
@@ -293,7 +352,7 @@
         btn.classList.add('is-loading');
         btn.disabled = true;
         await fetch(`/guilds/{{ guild.id }}/apply-role-icons`, { method: 'POST' });
-        alert('Alle Nicknames wurden aktualisiert');
+        window.showToast('Alle Nicknames wurden aktualisiert', window.toastTypes.INFO);
         btn.classList.remove('is-loading');
         btn.disabled = false;
     });
@@ -303,7 +362,6 @@
         const sheetCfg = JSON.parse('{{ sheet_cfg | tojson | safe }}');
         if (sheetCfg) {
             document.getElementById('sheet_id').value = sheetCfg.sheet_id || '';
-            document.getElementById('worksheet_name').value = sheetCfg.worksheet_name || '';
         }
 
         document.getElementById('gsheetForm').addEventListener('submit', async (e) => {
@@ -312,42 +370,71 @@
             submitBtn.classList.add('is-loading');
             submitBtn.disabled = true;
             const payload = {
-                sheet_id: document.getElementById('sheet_id').value.trim(),
-                worksheet_name: document.getElementById('worksheet_name').value.trim()
+                sheet_id: document.getElementById('sheet_id').value.trim()
             };
             await fetch(`/guilds/{{ guild.id }}/google-sheet`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
-            alert('Google-Sheet Konfiguration gespeichert');
+            window.showToast('Google-Sheet Konfiguration gespeichert', window.toastTypes.INFO);
             submitBtn.classList.remove('is-loading');
             submitBtn.disabled = false;
         });
-
-        document.getElementById('preview_sheet').addEventListener('click', async () => {
-            const btn = document.getElementById('preview_sheet');
-            btn.classList.add('is-loading');
-            const resp = await fetch(`/guilds/{{ guild.id }}/google-sheet/preview`);
-            if (resp.ok) {
-                const data = await resp.json();
-                const container = document.getElementById('sheet_preview');
-                const rows = data.values || [];
-                if (rows.length === 0) {
-                    container.innerHTML = '<p>Keine Daten im Sheet.</p>';
-                } else {
-                    let html = '<table class="table is-fullwidth is-striped is-hoverable"><tbody>';
-                    rows.forEach(r => {
-                        html += '<tr>' + r.map(c => `<td>${c}</td>`).join('') + '</tr>';
-                    });
-                    html += '</tbody></table>';
-                    container.innerHTML = html;
-                }
-            } else {
-                alert('Fehler beim Abrufen des Sheets: ' + resp.statusText);
-            }
-            btn.classList.remove('is-loading');
-        });
     })();
+
+    // Verbindung testen
+    document.getElementById('test_conn').addEventListener('click', async () => {
+        const btn = document.getElementById('test_conn');
+        btn.classList.add('is-loading');
+        btn.disabled = true;
+        try {
+            const resp = await fetch(`/guilds/{{ guild.id }}/google-sheet/test`, { method: 'POST' });
+            if (resp.ok) {
+                window.showToast('✅ Verbindung erfolgreich.', window.toastTypes.INFO);
+            } else {
+                const data = await resp.json();
+                window.showToast('❌ Fehler: ' + (data.detail || resp.statusText), window.toastTypes.ERROR);
+            }
+        } catch (err) {
+            window.showToast('❌ Netzwerkfehler: ' + err, window.toastTypes.ERROR);
+        }
+        btn.classList.remove('is-loading');
+        btn.disabled = false;
+    });
+
+    // ---- Review Message Config ----
+    document.getElementById('reviewMsgForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        submitBtn.classList.add('is-loading');
+        submitBtn.disabled = true;
+        const message = document.getElementById('review_message').value.trim();
+        await fetch(`/guilds/{{ guild.id }}/review-message`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message })
+        });
+        window.showToast('Review-Nachricht gespeichert', window.toastTypes.INFO);
+        submitBtn.classList.remove('is-loading');
+        submitBtn.disabled = false;
+    });
+
+    // ---- VOD Link Config ----
+    document.getElementById('vodLinkForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        submitBtn.classList.add('is-loading');
+        submitBtn.disabled = true;
+        const linkVal = document.getElementById('vod_link').value.trim();
+        await fetch(`/guilds/{{ guild.id }}/vod-link`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ link: linkVal })
+        });
+        window.showToast('VOD-Link gespeichert', window.toastTypes.INFO);
+        submitBtn.classList.remove('is-loading');
+        submitBtn.disabled = false;
+    });
 </script>
 {% endblock %}

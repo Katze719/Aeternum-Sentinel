@@ -1,0 +1,786 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="sheet-page">
+    <h2 class="title is-3">Google-Sheet Einstellungen</h2>
+
+    <div class="columns">
+        <div class="column is-one-third">
+            <div class="box">
+                <form id="gsheetForm">
+                    <div class="field">
+                        <label class="label">Sheet-ID <span id="sheet_title" class="has-text-grey"></span></label>
+                        <div class="control">
+                            <input disabled class="input" type="text" id="sheet_id" placeholder="1abcDEF…">
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label class="label">Worksheet</label>
+                        <div class="control">
+                            <div class="select is-fullwidth">
+                                <select id="worksheet_name"></select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="field is-grouped">
+                        <div class="control">
+                            <button id="reload" class="button is-primary" type="button">Neu laden</button>
+                        </div>
+                    </div>
+                    <p class="help">Service-Account JSON wird serverseitig über <code>GOOGLE_CREDENTIALS_PATH</code>
+                        gesetzt.</p>
+                    <div id="member_settings_block" style="display:none;">
+                        <hr>
+                        <!-- Member selection settings -->
+                        <div class="field">
+                            <label class="label">Mitglied-Auswahl</label>
+                            <div class="control">
+                                <div class="select is-fullwidth">
+                                    <select id="member_scope">
+                                        <option value="all">Alle Mitglieder</option>
+                                        <option value="role">Nur Mitglieder mit Rolle</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="field" id="role_select_field" style="display:none;">
+                            <label class="label">Rollen</label>
+                            <div class="control">
+                                <div class="select is-fullwidth is-multiple">
+                                    <select id="role_ids" multiple size="6" data-choices>
+                                        {% if roles %}
+                                        {% for role in roles %}
+                                        <option value="{{ role.id }}">{{ role.name }}</option>
+                                        {% endfor %}
+                                        {% endif %}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Regelspalten-Settings (dynamisch) -->
+                    <div id="rule_settings_block" style="display:none;">
+                        <hr>
+                        <div class="field">
+                            <label class="label">Regel für Spalte <span id="rule_col_name"></span></label>
+                        </div>
+
+                        <!-- Verhalten bei mehreren zutreffenden Regeln -->
+                        <div class="field">
+                            <label class="label">Verhalten bei mehreren Regeln</label>
+                            <div class="control">
+                                <div class="select">
+                                    <select id="rule_behavior">
+                                        <option value="first">Erste zutreffende Regel verwenden</option>
+                                        <option value="combine">Alle Werte mit Komma trennen</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <p class="help">Bestimmt, was passiert, wenn mehrere Regeln für einen Nutzer zutreffen.</p>
+                        </div>
+
+                        <!-- Regeln-Liste -->
+                        <div id="rules_list">
+                            <!-- Regeln werden hier dynamisch hinzugefügt -->
+                        </div>
+
+                        <!-- Neue Regel hinzufügen -->
+                        <div class="field">
+                            <button class="button is-info is-small" id="add_rule_btn" type="button">+ Neue Regel
+                                hinzufügen</button>
+                        </div>
+
+                        <div class="field is-grouped">
+                            <div class="control">
+                                <button class="button is-success" id="save_rule_btn" type="button">Speichern</button>
+                            </div>
+                            <div class="control">
+                                <button class="button" id="cancel_rule_btn" type="button">Abbrechen</button>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <div class="column" style="min-width:0;">
+            <div id="sheet_container" style="overflow:auto; height:75vh;">Lade Worksheets…</div>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            async function fetchConfig() {
+                const resp = await fetch(`/guilds/{{ guild_id }}/google-sheet`);
+                if (!resp.ok) return {};
+                return await resp.json();
+            }
+
+            // Pre-fill form with current config
+            (async () => {
+                const cfgInit = await fetchConfig();
+                if (cfgInit) {
+                    document.getElementById('sheet_id').value = cfgInit.sheet_id || '';
+                    window.__current_ws = cfgInit.worksheet_name || '';
+                }
+                await populateWorksheets();
+            })();
+
+            // Ensure member settings are applied after DOM is fully loaded
+            document.addEventListener('DOMContentLoaded', () => {
+                // Re-apply member settings if we have a current mapping
+                if (window.__current_mapping) {
+                    applyMemberSettings(window.__current_mapping);
+                }
+            });
+
+            // --- Member selection logic (managed per worksheet) ---
+            const memberSettingsBlock = document.getElementById('member_settings_block');
+            const memberScopeEl = document.getElementById('member_scope');
+            const roleSelectField = document.getElementById('role_select_field');
+            const roleIdEl = document.getElementById('role_ids');
+
+            function toggleRoleField() {
+                if (!memberScopeEl || !roleSelectField) return;
+                roleSelectField.style.display = memberScopeEl.value === 'role' ? '' : 'none';
+            }
+
+            function applyMemberSettings(mappingObj) {
+                if (!memberSettingsBlock) return;
+                if (mappingObj) {
+                    memberSettingsBlock.style.display = '';
+                    if (memberScopeEl) {
+                        memberScopeEl.value = mappingObj.member_scope || 'all';
+                    }
+                    if (roleIdEl) {
+                        const ids = (mappingObj.role_ids || []).map(String);
+                        Array.from(roleIdEl.options).forEach(opt => {
+                            opt.selected = ids.includes(opt.value);
+                        });
+                    }
+                    toggleRoleField();
+                } else {
+                    memberSettingsBlock.style.display = 'none';
+                }
+            }
+
+            if (memberScopeEl) {
+                memberScopeEl.addEventListener('change', () => {
+                    // Beim Wechsel zu "role": Rollen deselektieren, aber noch NICHT speichern –
+                    // erst nach tatsächlicher Rollenauswahl.
+                    if (memberScopeEl.value === 'role') {
+                        if (roleIdEl) {
+                            Array.from(roleIdEl.options).forEach(opt => { opt.selected = false; });
+                        }
+                        toggleRoleField();
+                        // kein saveConfig hier
+                    } else {
+                        // Wechsel zu "all" → sofort speichern
+                        toggleRoleField();
+                        saveConfig();
+                    }
+                });
+            }
+
+            if (roleIdEl) {
+                roleIdEl.addEventListener('change', saveConfig);
+            }
+
+            async function populateWorksheets() {
+                const sheetId = document.getElementById('sheet_id').value.trim();
+                const sel = document.getElementById('worksheet_name');
+
+                // Clear existing options
+                sel.innerHTML = '';
+
+                if (!sheetId) {
+                    // No sheet ID – leave dropdown empty
+                    document.getElementById('sheet_title').textContent = '';
+                    return;
+                }
+
+                try {
+                    const resp = await fetch(`/guilds/{{ guild_id }}/google-sheet/worksheets?sheet_id=${encodeURIComponent(sheetId)}`);
+                    if (!resp.ok) throw new Error('Worksheet-Liste konnte nicht geladen werden');
+                    const data = await resp.json();
+                    const list = data.worksheets || [];
+                    // Show sheet title
+                    document.getElementById('sheet_title').textContent = data.title ? `(${data.title})` : '';
+                    list.forEach(name => {
+                        const opt = document.createElement('option');
+                        opt.value = name;
+                        opt.textContent = name;
+                        sel.appendChild(opt);
+                    });
+
+                    // Restore previous selection if still available, else first item
+                    const previous = window.__current_ws;
+                    if (previous && list.includes(previous)) {
+                        sel.value = previous;
+                    } else if (list.length > 0) {
+                        sel.value = list[0];
+                        window.__current_ws = sel.value;
+                    }
+
+                    // After populating, refresh preview
+                    loadPreview();
+                } catch (err) {
+                    console.error(err);
+                }
+            }
+
+            // Fetch worksheet list whenever sheet-id changes
+            document.getElementById('sheet_id').addEventListener('change', populateWorksheets);
+            document.getElementById('sheet_id').addEventListener('blur', populateWorksheets);
+
+            async function loadPreview() {
+                const cont = document.getElementById('sheet_container');
+                const wsName = document.getElementById('worksheet_name').value.trim();
+                if (!wsName) {
+                    cont.innerHTML = '<p class="has-text-danger">Bitte Worksheet-Name eingeben.</p>';
+                    return;
+                }
+                const wsParam = encodeURIComponent(wsName);
+                const cfg = await fetchConfig();
+                cont.innerHTML = '<p>Lade Worksheet ' + wsName + '…</p>';
+                const resp = await fetch(`/guilds/{{ guild_id }}/google-sheet/preview?worksheet=${wsParam}`);
+                if (!resp.ok) {
+                    let msg = resp.statusText;
+                    try { const d = await resp.json(); if (d.detail) msg = d.detail; } catch (_) { }
+                    cont.innerHTML = '<p class="has-text-danger">Fehler: ' + msg + '</p>';
+                    return;
+                }
+                const data = await resp.json();
+                const rows = data.values || [];
+                if (rows.length === 0) {
+                    cont.innerHTML = '<p>Keine Daten vorhanden.</p>';
+                    return;
+                }
+                const MIN_COLS = 10;
+                const MIN_ROWS = 15;
+                const maxColsData = Math.max(...rows.map(r => r.length));
+                const totalCols = Math.max(maxColsData, MIN_COLS);
+                const colLetter = n => { let s = ''; while (n >= 0) { s = String.fromCharCode((n % 26) + 65) + s; n = Math.floor(n / 26) - 1; } return s; };
+                let html = '<table class="table is-fullwidth sheet-preview"><thead><tr><th></th>';
+                for (let c = 0; c < totalCols; c++) { html += `<th>${colLetter(c)}</th>`; }
+                html += '</tr></thead><tbody>';
+
+                // Ensure at least MIN_ROWS rows
+                while (rows.length < MIN_ROWS) rows.push([]);
+
+                rows.forEach((row, idx) => {
+                    html += `<tr><th>${idx + 1}</th>`;
+                    for (let c = 0; c < totalCols; c++) { const val = row[c] ?? ''; html += `<td>${val}</td>`; }
+                    html += '</tr>';
+                });
+                html += '</tbody></table>';
+
+                // Apply existing mapping highlight
+                const wsKey = document.getElementById('worksheet_name').value.trim() || '__default__';
+                const mappingObj = cfg.username_mappings ? cfg.username_mappings[wsKey] : null;
+                // Expose globally for context menu logic
+                window.__current_mapping = mappingObj;
+                applyMemberSettings(mappingObj);
+
+                if (mappingObj) {
+                    const { row: mRow, col: mCol, direction: dir } = mappingObj;
+                    const anchorRowIdx = mRow - 1; // convert back to 0-based
+                    const wrap = document.createElement('div');
+                    wrap.innerHTML = html;
+                    const tableEl = wrap.firstChild;
+                    if (dir === 'vertical') {
+                        tableEl.querySelectorAll('tbody tr').forEach((tr, idx) => {
+                            if (idx < anchorRowIdx) return; // start mapping from anchor row downward
+                            const td = tr.children[mCol + 1];
+                            if (td) td.classList.add('cell-mapped');
+                        });
+                    } else {
+                        const targetTr = tableEl.querySelectorAll('tbody tr')[anchorRowIdx];
+                        if (targetTr) {
+                            targetTr.querySelectorAll('td').forEach((td, idx) => {
+                                if (idx < mCol) return; // start from anchor col
+                                td.classList.add('cell-mapped');
+                            });
+                        }
+                    }
+                    // highlight anchor cell stronger
+                    const anchorTd = tableEl.querySelectorAll('tbody tr')[anchorRowIdx]?.children[mCol + 1];
+                    if (anchorTd) anchorTd.classList.add('cell-anchor');
+
+                    html = tableEl.outerHTML;
+                }
+
+                cont.innerHTML = html;
+
+                // Highlight Regelspalten nach dem Rendern
+                await colorizeSheetPreview();
+            }
+
+            async function saveConfig() {
+                const payload = {
+                    sheet_id: document.getElementById('sheet_id').value.trim(),
+                    worksheet_name: document.getElementById('worksheet_name').value.trim()
+                };
+
+                let memberPayload = null;
+                if (memberSettingsBlock && memberSettingsBlock.style.display !== 'none' && memberScopeEl) {
+                    memberPayload = {
+                        worksheet: document.getElementById('worksheet_name').value.trim(),
+                        member_scope: memberScopeEl.value,
+                    };
+                    if (memberPayload.member_scope === 'role') {
+                        const roleIds = roleIdEl ? Array.from(roleIdEl.selectedOptions).map(o => o.value) : [];
+                        if (roleIds.length === 0) {
+                            if (window.__current_mapping && window.__current_mapping.member_scope === 'role' && (window.__current_mapping.role_ids ?? []).length > 0) {
+                                memberPayload.member_scope = 'all';
+                                if (memberScopeEl) {
+                                    memberScopeEl.value = 'all';
+                                    toggleRoleField();
+                                }
+                            } else {
+                                memberPayload = null;
+                            }
+                        } else {
+                            memberPayload.role_ids = roleIds;
+                        }
+                    }
+                }
+
+                if (!payload.sheet_id || !payload.worksheet_name) return;
+                // Keep existing endpoint for sheet_id updates (no harm if values unchanged)
+                await fetch(`/guilds/{{ guild_id }}/google-sheet`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+                });
+
+                if (memberPayload) {
+                    await fetch(`/guilds/{{ guild_id }}/google-sheet/username-mapping-settings`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(memberPayload)
+                    });
+                }
+            }
+
+            // Reload button now only refreshes preview but ensures latest config is saved.
+            document.getElementById('reload').addEventListener('click', async () => {
+                await saveConfig();
+                loadPreview();
+            });
+
+            // ----- Context menu for mapping -----------------------------
+            let ctxMenu;
+            function createMenu(x, y, cellRow, cellCol) {
+                if (ctxMenu) ctxMenu.remove();
+                ctxMenu = document.createElement('div');
+                ctxMenu.className = 'sheet-context dropdown-content';
+                ctxMenu.style.left = x + 'px';
+                ctxMenu.style.top = y + 'px';
+
+                let html = `
+                <a class="dropdown-item" data-dir="vertical">Als Nutzernamen (↓ vertikal)</a>
+                <a class="dropdown-item" data-dir="horizontal">Als Nutzernamen (→ horizontal)</a>`;
+
+                // If current cell is anchor of existing mapping → offer remove option
+                if (window.__current_mapping && window.__current_mapping.row === cellRow + 1 && window.__current_mapping.col === cellCol) {
+                    html += `<hr class="dropdown-divider"><a class="dropdown-item" data-action="remove">Mapping entfernen</a>`;
+                }
+
+                ctxMenu.innerHTML = html;
+                document.body.appendChild(ctxMenu);
+
+                ctxMenu.querySelectorAll('a').forEach(a => {
+                    const dir = a.dataset.dir;
+                    const action = a.dataset.action;
+                    a.addEventListener('click', async () => {
+                        if (ctxMenu) ctxMenu.remove();
+                        const worksheetVal = document.getElementById('worksheet_name').value.trim();
+                        if (action === 'remove') {
+                            await fetch(`/guilds/{{ guild_id }}/google-sheet/username-mapping/${encodeURIComponent(worksheetVal)}`, {
+                                method: 'DELETE'
+                            });
+                            location.reload();
+                            return;
+                        }
+                        // Otherwise create mapping
+                        await fetch(`/guilds/{{ guild_id }}/google-sheet/username-mapping`, {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ row: cellRow + 1, col: cellCol, direction: dir, worksheet: worksheetVal })
+                        });
+                        location.reload();
+                    });
+                });
+            }
+            document.addEventListener('contextmenu', e => {
+                if (!e.target.closest('#sheet_container td')) return;
+                e.preventDefault();
+                const td = e.target.closest('td');
+                const tr = td.parentElement;
+                const col = Array.from(tr.children).indexOf(td) - 1; // minus row header
+                const row = Array.from(tr.parentElement.children).indexOf(tr);
+                createMenu(e.pageX, e.pageY, row, col);
+            });
+            document.addEventListener('click', () => { if (ctxMenu) ctxMenu.remove(); });
+
+            // Persist worksheet selection without touching member mapping settings
+            async function saveWorksheetSelection() {
+                const payload = {
+                    sheet_id: document.getElementById('sheet_id').value.trim(),
+                    worksheet_name: document.getElementById('worksheet_name').value.trim()
+                };
+                if (!payload.sheet_id || !payload.worksheet_name) return;
+                await fetch(`/guilds/{{ guild_id }}/google-sheet`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+                });
+            }
+
+            // Reload when worksheet name changes (but avoid copying member settings)
+            document.getElementById('worksheet_name').addEventListener('change', async () => {
+                window.__current_ws = document.getElementById('worksheet_name').value;
+                await saveWorksheetSelection();
+                loadPreview();
+            });
+
+            // Save config whenever sheet ID changes to keep backend in sync
+            document.getElementById('sheet_id').addEventListener('blur', saveConfig);
+
+            // --- Regelspalten-Kontextmenü und Settings ---
+            let mappingColumns = [];
+            let currentRuleCol = null;
+            let currentRuleColIdx = null;
+            let currentRuleSheet = null;
+            let ruleSettingsBlock = document.getElementById('rule_settings_block');
+            let ruleColNameEl = document.getElementById('rule_col_name');
+            let rulesListEl = document.getElementById('rules_list');
+            let addRuleBtn = document.getElementById('add_rule_btn');
+            let saveRuleBtn = document.getElementById('save_rule_btn');
+            let cancelRuleBtn = document.getElementById('cancel_rule_btn');
+            let ruleBehaviorEl = document.getElementById('rule_behavior');
+
+            async function loadMappingColumns() {
+                const resp = await fetch(`/guilds/{{ guild_id }}/mapping-columns`);
+                mappingColumns = await resp.json();
+            }
+
+            // Funktion zum Erstellen einer neuen Regel-UI
+            function createRuleElement(rule = null, ruleIndex = 0) {
+                const ruleDiv = document.createElement('div');
+                ruleDiv.className = 'rule-item box mb-3';
+                ruleDiv.dataset.ruleIndex = ruleIndex;
+
+                const ruleData = rule || { mode: 'string', value: '', roles: [] };
+
+                ruleDiv.innerHTML = `
+                    <div class="field">
+                        <label class="label">Regel ${ruleIndex + 1}</label>
+                        <button class="button is-danger is-small" style="float: right;" onclick="removeRule(this)">✖</button>
+                    </div>
+                    <div class="field">
+                        <label class="label">Modus</label>
+                        <div class="control">
+                            <div class="select">
+                                <select class="rule-mode">
+                                    <option value="string" ${ruleData.mode === 'string' ? 'selected' : ''}>String</option>
+                                    <option value="truefalse" ${ruleData.mode === 'truefalse' ? 'selected' : ''}>True/False</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="field rule-value-field" style="display: ${ruleData.mode === 'string' ? '' : 'none'};">
+                        <label class="label">Wert (bei String)</label>
+                        <div class="control">
+                            <input class="input rule-value" type="text" value="${ruleData.value || ''}">
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label class="label">Rollen</label>
+                        <div class="control">
+                            <div class="select is-fullwidth is-multiple">
+                                <select class="rule-roles" multiple size="6" data-choices>
+                                    {% if roles %}
+                                    {% for role in roles %}
+                                    <option value="{{ role.id }}" ${(ruleData.roles || []).includes('{{ role.id }}') ? 'selected' : ''}>{{ role.name }}</option>
+                                    {% endfor %}
+                                    {% endif %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                // Event Listener für Modus-Änderung
+                const modeSelect = ruleDiv.querySelector('.rule-mode');
+                const valueField = ruleDiv.querySelector('.rule-value-field');
+                modeSelect.addEventListener('change', () => {
+                    valueField.style.display = modeSelect.value === 'string' ? '' : 'none';
+                });
+
+                return ruleDiv;
+            }
+
+            // Funktion zum Entfernen einer Regel
+            window.removeRule = function (btn) {
+                const ruleItem = btn.closest('.rule-item');
+                ruleItem.remove();
+                // Aktualisiere die Regel-Indizes
+                document.querySelectorAll('.rule-item').forEach((item, index) => {
+                    item.dataset.ruleIndex = index;
+                    item.querySelector('.label').textContent = `Regel ${index + 1}`;
+                });
+            };
+
+            // Funktion zum Hinzufügen einer neuen Regel
+            addRuleBtn.addEventListener('click', () => {
+                const ruleCount = document.querySelectorAll('.rule-item').length;
+                const newRule = createRuleElement(null, ruleCount);
+                rulesListEl.appendChild(newRule);
+
+                // Choices.js für neue Select-Elemente aktivieren
+                const choicesEl = newRule.querySelector('.rule-roles');
+                if (choicesEl) {
+                    new Choices(choicesEl, { searchEnabled: true, itemSelectText: '', renderSelectedChoices: 'always', removeItemButton: true });
+                }
+            });
+
+            // Funktion zum Sammeln aller Regeln
+            function collectRules() {
+                const rules = [];
+                document.querySelectorAll('.rule-item').forEach((ruleItem, index) => {
+                    const mode = ruleItem.querySelector('.rule-mode').value;
+                    const value = ruleItem.querySelector('.rule-value').value;
+                    const rolesSelect = ruleItem.querySelector('.rule-roles');
+                    const roles = Array.from(rolesSelect.selectedOptions).map(opt => opt.value);
+
+                    rules.push({
+                        mode: mode,
+                        value: mode === 'string' ? value : undefined,
+                        roles: roles
+                    });
+                });
+                return rules;
+            }
+
+            // Funktion zum Rendern aller Regeln
+            function renderRules(rules = []) {
+                rulesListEl.innerHTML = '';
+                if (rules.length === 0) {
+                    // Mindestens eine leere Regel anzeigen
+                    const emptyRule = createRuleElement(null, 0);
+                    rulesListEl.appendChild(emptyRule);
+
+                    // Choices.js aktivieren
+                    const choicesEl = emptyRule.querySelector('.rule-roles');
+                    if (choicesEl) {
+                        new Choices(choicesEl, { searchEnabled: true, itemSelectText: '', renderSelectedChoices: 'always', removeItemButton: true });
+                    }
+                } else {
+                    rules.forEach((rule, index) => {
+                        const ruleElement = createRuleElement(rule, index);
+                        rulesListEl.appendChild(ruleElement);
+
+                        // Choices.js aktivieren
+                        const choicesEl = ruleElement.querySelector('.rule-roles');
+                        if (choicesEl) {
+                            new Choices(choicesEl, { searchEnabled: true, itemSelectText: '', renderSelectedChoices: 'always', removeItemButton: true });
+                        }
+                    });
+                }
+            }
+
+            // --- Regelspalten-Highlighting nach Preview-Reload ---
+            async function colorizeSheetPreview() {
+                setTimeout(async () => {
+                    const table = document.querySelector('.sheet-preview');
+                    if (!table) return;
+                    // Entferne alte Regel-Highlightings
+                    table.querySelectorAll('.rule-mapped').forEach(el => el.classList.remove('rule-mapped'));
+
+                    const wsName = document.getElementById('worksheet_name').value.trim();
+                    // Hole aktuelle Mapping-Spalten
+                    const resp = await fetch(`/guilds/{{ guild_id }}/mapping-columns`);
+                    const mappingColumns = await resp.json();
+
+                    // Header-Zeile im <thead>
+                    const theadRow = table.querySelector('thead tr');
+                    if (!theadRow) return;
+
+                    // Alle Zeilen im <tbody>
+                    const tbodyRows = Array.from(table.querySelectorAll('tbody tr'));
+
+                    // Für jede Regelspalte: Spaltenindex bestimmen wie beim Usermapping
+                    mappingColumns.forEach(col => {
+                        // Suche Spaltenindex (case-insensitive, trim)
+                        const headerCells = Array.from(theadRow.children).slice(1); // skip row number
+                        const idx = headerCells.findIndex(th => th.textContent.trim().toLowerCase() === col.name.trim().toLowerCase());
+                        if (idx === -1) return;
+                        const colIdx = idx + 1; // +1 wegen row number
+
+                        // Header einfärben
+                        if (theadRow.children[colIdx]) {
+                            theadRow.children[colIdx].classList.add('rule-mapped');
+                        }
+                        // Alle Zellen in dieser Spalte einfärben
+                        tbodyRows.forEach(tr => {
+                            // Finde alle <td> (ohne <th>)
+                            const tds = Array.from(tr.querySelectorAll('td'));
+                            const td = tds[idx];
+                            if (td) {
+                                td.classList.add('rule-mapped');
+                            }
+                        });
+                    });
+                }, 200);
+            }
+            // Rufe colorizeSheetPreview nach jedem Preview-Reload auf
+            document.addEventListener('DOMContentLoaded', colorizeSheetPreview);
+
+            // Kontextmenü für Regelspalten
+            document.addEventListener('contextmenu', async function (e) {
+                const td = e.target.closest('#sheet_container td');
+                if (!td) return;
+                const table = td.closest('table');
+                if (!table) return;
+                const tr = td.parentElement;
+                const colIdx = Array.from(tr.children).indexOf(td) - 1; // minus row header
+                const headerRow = table.querySelector('thead tr');
+                const colName = headerRow && headerRow.children[colIdx + 1] ? headerRow.children[colIdx + 1].textContent.trim() : null;
+                if (!colName) return;
+                const wsName = document.getElementById('worksheet_name').value.trim();
+                await loadMappingColumns();
+                const isUserMapping = window.__current_mapping != null;
+                const ruleCol = mappingColumns.find(col => col.name === colName);
+                // Wenn Usermapping existiert und diese Spalte keine Regelspalte ist: Regel erstellen
+                if (isUserMapping && !ruleCol) {
+                    e.preventDefault();
+                    let ctxMenu = document.createElement('div');
+                    ctxMenu.className = 'sheet-context dropdown-content';
+                    ctxMenu.style.left = e.pageX + 'px';
+                    ctxMenu.style.top = e.pageY + 'px';
+                    ctxMenu.innerHTML = `<a class="dropdown-item" id="set_rule_btn">Regel einstellen für Spalte <b>${colName}</b></a>`;
+                    document.body.appendChild(ctxMenu);
+                    ctxMenu.querySelector('#set_rule_btn').addEventListener('click', () => {
+                        ctxMenu.remove();
+                        showRuleSettings(colName, colIdx, wsName);
+                    });
+                    document.addEventListener('click', () => { ctxMenu.remove(); }, { once: true });
+                }
+                // Wenn Spalte eine Regelspalte ist: Bearbeiten/Löschen anbieten
+                if (ruleCol) {
+                    e.preventDefault();
+                    let ctxMenu = document.createElement('div');
+                    ctxMenu.className = 'sheet-context dropdown-content';
+                    ctxMenu.style.left = e.pageX + 'px';
+                    ctxMenu.style.top = e.pageY + 'px';
+                    ctxMenu.innerHTML = `
+                        <a class="dropdown-item" id="edit_rule_btn">Regel bearbeiten</a>
+                        <a class="dropdown-item" id="delete_rule_btn">Regel löschen</a>
+                    `;
+                    document.body.appendChild(ctxMenu);
+                    ctxMenu.querySelector('#edit_rule_btn').addEventListener('click', () => {
+                        ctxMenu.remove();
+                        showRuleSettings(colName, colIdx, wsName, ruleCol);
+                    });
+                    ctxMenu.querySelector('#delete_rule_btn').addEventListener('click', async () => {
+                        ctxMenu.remove();
+                        await loadMappingColumns();
+                        const newCols = mappingColumns.filter(col => col.name !== colName);
+                        await fetch(`/guilds/{{ guild_id }}/mapping-columns`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(newCols)
+                        });
+                        window.showToast('Regelspalte entfernt', window.toastTypes.INFO);
+                        window.loadPreview();
+                    });
+                    document.addEventListener('click', () => { ctxMenu.remove(); }, { once: true });
+                }
+            });
+
+            function showRuleSettings(colName, colIdx, wsName, ruleCol = null) {
+                currentRuleCol = colName;
+                currentRuleColIdx = colIdx;
+                currentRuleSheet = wsName;
+                ruleColNameEl.textContent = colName;
+                ruleSettingsBlock.style.display = '';
+
+                // Felder befüllen, ggf. mit bestehender Regel
+                if (ruleCol) {
+                    // Migration: Falls altes Format, konvertiere zu neuem Format
+                    if (ruleCol.rules) {
+                        // Neues Format - verwende rules Array
+                        renderRules(ruleCol.rules);
+                    } else if (ruleCol.mode) {
+                        // Altes Format - konvertiere zu neuem Format
+                        const oldRule = {
+                            mode: ruleCol.mode,
+                            value: ruleCol.mode === 'string' ? (ruleCol.value || '') : '',
+                            roles: (ruleCol.roles || []).map(String)
+                        };
+                        renderRules([oldRule]);
+                    } else {
+                        // Keine Regeln vorhanden
+                        renderRules([]);
+                    }
+
+                    // Behavior setzen
+                    if (ruleBehaviorEl) {
+                        ruleBehaviorEl.value = ruleCol.behavior || 'first';
+                    }
+                } else {
+                    // Neue Regelspalte - leere Regeln anzeigen
+                    renderRules([]);
+                    if (ruleBehaviorEl) {
+                        ruleBehaviorEl.value = 'first';
+                    }
+                }
+            }
+
+            saveRuleBtn.addEventListener('click', async () => {
+                if (!currentRuleCol) return;
+
+                const rules = collectRules();
+                const behavior = ruleBehaviorEl ? ruleBehaviorEl.value : 'first';
+
+                // Validierung: Mindestens eine Regel mit Rollen
+                const validRules = rules.filter(rule => rule.roles.length > 0);
+                if (validRules.length === 0) {
+                    window.showToast('Mindestens eine Regel mit Rollen erforderlich', window.toastTypes.ERROR);
+                    return;
+                }
+
+                await loadMappingColumns();
+
+                // Update oder neu anlegen
+                const idx = mappingColumns.findIndex(col => col.name === currentRuleCol);
+                if (idx >= 0) {
+                    mappingColumns[idx] = {
+                        name: currentRuleCol,
+                        rules: validRules,
+                        behavior: behavior
+                    };
+                } else {
+                    mappingColumns.push({
+                        name: currentRuleCol,
+                        rules: validRules,
+                        behavior: behavior
+                    });
+                }
+
+                await fetch(`/guilds/{{ guild_id }}/mapping-columns`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(mappingColumns)
+                });
+
+                window.showToast('Regelspalte gespeichert', window.toastTypes.INFO);
+                ruleSettingsBlock.style.display = 'none';
+                currentRuleCol = null;
+                currentRuleColIdx = null;
+                currentRuleSheet = null;
+                window.loadPreview();
+            });
+            cancelRuleBtn.addEventListener('click', () => {
+                ruleSettingsBlock.style.display = 'none';
+                currentRuleCol = null;
+                currentRuleColIdx = null;
+                currentRuleSheet = null;
+            });
+        })();
+    </script>
+</div> <!-- .sheet-page -->
+{% endblock %}

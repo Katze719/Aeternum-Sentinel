@@ -6,6 +6,8 @@ __all__ = [
     "NameFormatPayload",
     "TogglePayload",
     "VoiceAutoConfigPayload",
+    "ReviewMessagePayload",
+    "VodLinkPayload",
 ]
 
 
@@ -31,3 +33,11 @@ class VoiceAutoConfigPayload(BaseModel):
     generator_channel_id: str
     target_category_id: str
     name_pattern: str | None = "{username}" 
+
+
+class ReviewMessagePayload(BaseModel):
+    message: str 
+
+
+class VodLinkPayload(BaseModel):
+    link: str 

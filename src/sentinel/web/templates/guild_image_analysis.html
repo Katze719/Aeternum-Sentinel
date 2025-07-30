@@ -1,0 +1,774 @@
+{% extends "base.html" %}
+
+{% block title %}Bildanalyse - {{ guild.name }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h2 class="title is-3">🔍 Bildanalyse - {{ guild.name }}</h2>
+    <p class="subtitle is-6">Konfiguriere die automatische Analyse von Bildern zur Extraktion von Benutzernamen</p>
+
+    <!-- Configuration Section -->
+    <div class="card mb-6">
+        <header class="card-header">
+            <p class="card-header-title">⚙️ Konfiguration</p>
+        </header>
+        <div class="card-content">
+            <form id="configForm">
+                <!-- Enable/Disable Toggle -->
+                <div class="field">
+                    <input id="enabled" type="checkbox" class="switch is-rounded is-info">
+                    <label for="enabled">Bildanalyse aktivieren</label>
+                    <p class="help">Automatische Analyse von hochgeladenen Bildern</p>
+                </div>
+
+                <!-- Channel Selection -->
+                <div class="field">
+                    <label class="label">Überwachter Kanal</label>
+                    <div class="control">
+                        <div class="select is-fullwidth">
+                            <select id="channel">
+                                <option value="">Kanal auswählen...</option>
+                            </select>
+                        </div>
+                    </div>
+                    <p class="help">Der Bot überwacht diesen Kanal auf hochgeladene Bilder</p>
+                </div>
+
+                <!-- Second Channel Selection (hidden by default) -->
+                <div class="field" id="secondChannelField" style="display: none;">
+                    <label class="label">Zweiter überwachter Kanal (optional)</label>
+                    <div class="control">
+                        <div class="select is-fullwidth">
+                            <select id="secondChannel">
+                                <option value="">Kanal auswählen...</option>
+                            </select>
+                        </div>
+                    </div>
+                    <p class="help">Optional: Ein zweiter Kanal, der ebenfalls überwacht wird</p>
+                </div>
+
+                <!-- Gemini API Key -->
+                <div class="field">
+                    <label class="label">Gemini API-Schlüssel</label>
+                    <div class="control">
+                        <input class="input" type="password" id="apiKey" placeholder="AIza...">
+                    </div>
+                    <p class="help">API-Schlüssel für Google Gemini (gemini-2.0-flash)</p>
+                    <p class="help">
+                        <a href="https://aistudio.google.com/app/apikey" target="_blank">API-Schlüssel erstellen →</a>
+                    </p>
+                </div>
+
+                <hr class="my-4">
+
+                <!-- Payout Tracking Configuration -->
+                <h4 class="title is-5">💰 Payout-Tracking</h4>
+                <p class="help mb-4">Konfiguriere das automatische Tracking von Teilnehmern in einem Google Sheet</p>
+
+                <!-- Payout Sheet ID -->
+                <div class="field">
+                    <label class="label">Payout Sheet-ID</label>
+                    <div class="control">
+                        <input class="input" type="text" id="payoutSheetId" placeholder="1abcDEF...">
+                    </div>
+                    <p class="help">Google Sheet-ID für das Payout-Tracking</p>
+                </div>
+
+                <!-- Payout Worksheet Name -->
+                <div class="field">
+                    <label class="label">Worksheet Name</label>
+                    <div class="control">
+                        <input class="input" type="text" id="payoutWorksheet"
+                            placeholder="Payoutliste {month_name} {year}">
+                    </div>
+                    <p class="help">Name des Worksheets im Google Sheet</p>
+                    <p class="help">
+                        <strong>Dynamische Platzhalter:</strong><br>
+                        • <code>{month_name}</code> → Monatsname in der gewählten Sprache<br>
+                        • <code>{year}</code> → 2025, 2026...<br>
+                        • <code>{month}</code> → 01, 02, 03...<br>
+                        • <code>{day}</code> → 01, 02, 03...<br>
+                        <strong>Beispiele:</strong><br>
+                        • Deutsch: <code>Payoutliste {month_name} {year}</code> → <code>Payoutliste Juli 2025</code><br>
+                        • English: <code>Payout {month_name} {year}</code> → <code>Payout July 2025</code><br>
+                        • Français: <code>Paiement {month_name} {year}</code> → <code>Paiement Juillet 2025</code>
+                    </p>
+                </div>
+
+                <!-- Language Selection -->
+                <div class="field">
+                    <label class="label">Sprache für Monatsnamen</label>
+                    <div class="control">
+                        <div class="select is-fullwidth">
+                            <select id="payoutLanguage">
+                                <option value="de">Deutsch</option>
+                                <option value="en">English</option>
+                                <option value="fr">Français</option>
+                                <option value="es">Español</option>
+                                <option value="it">Italiano</option>
+                            </select>
+                        </div>
+                    </div>
+                    <p class="help">Sprache für die Monatsnamen in dynamischen Worksheet-Namen</p>
+                </div>
+
+                <!-- User Column -->
+                <div class="field">
+                    <label class="label">Benutzer-Spalte</label>
+                    <div class="control">
+                        <input class="input" type="text" id="payoutUserColumn" placeholder="A" maxlength="3">
+                    </div>
+                    <p class="help">Spalte mit den Benutzernamen (z.B. A, B, C...)</p>
+                </div>
+
+                <!-- Event Row -->
+                <div class="field">
+                    <label class="label">Event-Zeile</label>
+                    <div class="control">
+                        <input class="input" type="number" id="payoutEventRow" placeholder="1" min="1">
+                    </div>
+                    <p class="help">Zeile für Event-Namen (z.B. 1, 2, 3...)</p>
+                </div>
+
+                <!-- Event Start Column -->
+                <div class="field">
+                    <label class="label">Event-Start-Spalte</label>
+                    <div class="control">
+                        <input class="input" type="text" id="payoutEventStartColumn" placeholder="G" maxlength="3">
+                    </div>
+                    <p class="help">Spalte ab der nach freien Zellen gesucht wird (z.B. G, H, I...). Leer lassen für
+                        Spalte A.</p>
+                </div>
+
+                <hr class="my-4">
+
+                <!-- Confirmation Roles -->
+                <h4 class="title is-5">🔐 Bestätigungsberechtigungen</h4>
+                <p class="help mb-4">Konfiguriere, welche Rollen Benutzernamen bestätigen dürfen</p>
+
+                <div class="field">
+                    <label class="label">Berechtigte Rollen</label>
+                    <div class="control">
+                        <div class="select is-fullwidth">
+                            <select id="confirmationRoles">
+                                <option value="">Rollen auswählen...</option>
+                            </select>
+                        </div>
+                    </div>
+                    <p class="help">Benutzer müssen mindestens eine der ausgewählten Rollen haben, um bestätigen zu
+                        können. Leer lassen, um allen zu erlauben.</p>
+                </div>
+
+                <!-- Second Role Selection (hidden by default) -->
+                <div class="field" id="secondRoleField" style="display: none;">
+                    <label class="label">Zweite berechtigte Rolle (optional)</label>
+                    <div class="control">
+                        <div class="select is-fullwidth">
+                            <select id="secondConfirmationRole">
+                                <option value="">Rolle auswählen...</option>
+                            </select>
+                        </div>
+                    </div>
+                    <p class="help">Optional: Eine zweite Rolle, die ebenfalls berechtigt ist</p>
+                </div>
+
+                <hr class="my-4">
+
+                <!-- Team Statistics Sheet Configuration -->
+                <h4 class="title is-5">📊 Team Statistics Sheet</h4>
+                <p class="help mb-4">Konfiguriere das Google Sheet für strukturierte Team-Statistiken Tabellen</p>
+
+                <!-- Team Stats Sheet ID -->
+                <div class="field">
+                    <label class="label">Team Stats Sheet-ID</label>
+                    <div class="control">
+                        <input class="input" type="text" id="teamStatsSheetId" placeholder="1abcDEF...">
+                    </div>
+                    <p class="help">Google Sheet-ID für Team-Statistiken Tabellen</p>
+                </div>
+
+                <!-- Team Stats Worksheet Name -->
+                <div class="field">
+                    <label class="label">Team Stats Worksheet Name</label>
+                    <div class="control">
+                        <input class="input" type="text" id="teamStatsWorksheet" placeholder="Team Statistics">
+                    </div>
+                    <p class="help">Name des Worksheets für Team-Statistiken Tabellen</p>
+                </div>
+
+                <!-- Save Button -->
+                <div class="field">
+                    <div class="control">
+                        <button type="submit" class="button is-primary">Konfiguration speichern</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Test Section -->
+    <div class="card mb-6">
+        <header class="card-header">
+            <p class="card-header-title">🧪 Test</p>
+        </header>
+        <div class="card-content">
+            <form id="testForm">
+                <div class="field">
+                    <label class="label">Bild-URL zum Testen</label>
+                    <div class="control">
+                        <input class="input" type="url" id="testImageUrl" placeholder="https://example.com/image.jpg"
+                            required>
+                    </div>
+                    <p class="help">Gib eine URL zu einem Bild ein, um die Analyse zu testen</p>
+                </div>
+
+                <div class="field">
+                    <div class="control">
+                        <button type="submit" class="button is-info">Bild analysieren</button>
+                    </div>
+                </div>
+            </form>
+
+            <div id="testResults" style="display: none;">
+                <hr class="my-4">
+                <h4 class="title is-5">Ergebnisse:</h4>
+
+                <div class="field">
+                    <label class="label">Extrahierter Text:</label>
+                    <div class="control">
+                        <textarea class="textarea" id="extractedText" rows="4" readonly></textarea>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label class="label">Gefundene Benutzernamen:</label>
+                    <div class="control">
+                        <div id="usernamesList" class="notification is-success">
+                            <!-- Usernames will be populated here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Payout Test Section -->
+                <div class="field mt-4">
+                    <label class="label">Payout-Tracking Test:</label>
+                    <div class="control">
+                        <input class="input" type="text" id="testThreadName" placeholder="Test Event Name"
+                            value="Test Event">
+                    </div>
+                    <p class="help">Thread-Name für den Payout-Test</p>
+                </div>
+
+                <div class="field">
+                    <div class="control">
+                        <button type="button" id="testPayoutBtn" class="button is-warning">Payout-Tracking
+                            testen</button>
+                    </div>
+                </div>
+
+                <div id="payoutTestResults" style="display: none;">
+                    <hr class="my-4">
+                    <h5 class="title is-6">Payout-Test Ergebnisse:</h5>
+                    <div id="payoutResults" class="notification is-info">
+                        <!-- Payout results will be populated here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Info Section -->
+    <div class="card">
+        <header class="card-header">
+            <p class="card-header-title">ℹ️ Informationen</p>
+        </header>
+        <div class="card-content">
+            <div class="notification is-info">
+                <p><strong>Wie funktioniert die Bildanalyse?</strong></p>
+                <ul class="mt-2">
+                    <li>• Der Bot überwacht den konfigurierten Kanal auf hochgeladene Bilder in <strong>Threads</strong>
+                    </li>
+                    <li>• Wenn ein Bild in einem Thread gefunden wird, wird es automatisch an Gemini AI gesendet</li>
+                    <li>• Die extrahierten Benutzernamen werden direkt als Discord-Nachricht in den <strong>gleichen
+                            Thread</strong> gesendet</li>
+                    <li>• Du kannst auch manuell den /analyze_image Befehl in einem Thread verwenden</li>
+                    <li>• <strong>Wichtig:</strong> Bilder im Hauptkanal werden nicht automatisch verarbeitet, nur in
+                        Threads</li>
+                </ul>
+            </div>
+
+            <div class="notification is-success mt-4">
+                <p><strong>💰 Payout-Tracking:</strong></p>
+                <ul class="mt-2">
+                    <li>• Nach der Bestätigung der Benutzernamen wird automatisch ein neues Event im Google Sheet
+                        erstellt</li>
+                    <li>• Der Thread-Name wird als Event-Name in der konfigurierten Event-Zeile eingetragen</li>
+                    <li>• Events werden ab der konfigurierten Start-Spalte gesucht (z.B. ab Spalte G)</li>
+                    <li>• Gefundene Benutzer werden mit einer "1" in der entsprechenden Spalte markiert</li>
+                    <li>• Nicht gefundene Benutzer werden in der Bestätigungsnachricht aufgelistet</li>
+                    <li>• Das System versucht sowohl exakte als auch partielle Übereinstimmungen zu finden</li>
+                    <li>• <strong>Dynamische Worksheets:</strong> Worksheets werden automatisch erstellt, falls sie
+                        nicht existieren</li>
+                    <li>• <strong>Monatliche Organisation:</strong> Verwende Platzhalter wie
+                        <code>{month_name} {year}</code> für automatische Monatswechsel
+                    </li>
+                    <li>• <strong>Mehrsprachige Unterstützung:</strong> Wähle die Sprache für Monatsnamen (Deutsch,
+                        Englisch, Französisch, Spanisch, Italienisch)</li>
+                    <li>• <strong>Rollenbasierte Berechtigungen:</strong> Konfiguriere, welche Rollen Benutzernamen
+                        bestätigen dürfen</li>
+                </ul>
+            </div>
+
+            <div class="notification is-warning mt-4">
+                <p><strong>🔐 Berechtigungen:</strong></p>
+                <ul class="mt-2">
+                    <li>• <strong>Konfigurierte Rollen:</strong> Benutzer müssen mindestens eine der ausgewählten Rollen
+                        haben</li>
+                    <li>• <strong>Standard:</strong> Wenn keine Rollen konfiguriert sind, können alle bestätigen</li>
+                    <li>• <strong>Fehlermeldung:</strong> Benutzer ohne Berechtigung erhalten eine klare Fehlermeldung
+                    </li>
+                </ul>
+            </div>
+
+            <div class="notification is-info mt-4">
+                <p><strong>📊 Team Statistics Tabellen:</strong></p>
+                <ul class="mt-2">
+                    <li>• <strong>Neuer Befehl:</strong>
+                        <code>/create_team_stats [stats_url] [composition_url] [enemy_stats_url]</code>
+                    </li>
+                    <li>• <strong>Bild-URLs:</strong> Team-Statistiken, Team-Zusammensetzung und Gegner-Statistiken
+                        (alle erforderlich)</li>
+                    <li>• <strong>Beispiel:</strong>
+                        <code>/create_team_stats https://example.com/stats.png https://example.com/groups.png https://example.com/enemy.png</code>
+                    </li>
+                    <li>• <strong>Automatische Verarbeitung:</strong> Der Bot lädt die Bilder herunter und analysiert
+                        sie mit Gemini AI</li>
+                    <li>• <strong>Strukturierte Tabellen:</strong> Erstellt automatisch formatierte Tabellen im Google
+                        Sheet</li>
+                    <li>• <strong>Event-basierte Organisation:</strong> Jede Tabelle wird mit dem Thread-Namen als
+                        Event-Header versehen</li>
+                    <li>• <strong>Team-Statistiken:</strong> Spieler-Statistiken (Kills, Deaths, Assists, Healing,
+                        Damage)</li>
+                    <li>• <strong>Gegner-Statistiken:</strong> Gegner-Spieler-Statistiken für Vergleich</li>
+                    <li>• <strong>Gruppen-Statistiken:</strong> Aggregierte Statistiken pro Gruppe</li>
+                    <li>• <strong>Gesamtvergleich:</strong> Team vs. Gegner Gesamtstatistiken</li>
+                    <li>• <strong>Team-Zusammensetzung:</strong> Übersichtliche Darstellung der Gruppen und Spieler</li>
+                    <li>• <strong>Flexible Konfiguration:</strong> Separate Google Sheet-Konfiguration für
+                        Team-Statistiken</li>
+                    <li>• <strong>Überall verwendbar:</strong> Funktioniert in jedem Kanal, nicht nur in Threads</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    import { showToast, toastTypes } from '/static/js/show_toast.js';
+
+    let guildId = '{{ guild.id }}';
+    console.log('Guild ID:', guildId); // Debug log
+
+    // Load configuration
+    async function loadConfig() {
+        try {
+            const response = await fetch(`/guilds/${guildId}/image-analysis`, {
+                credentials: 'same-origin'
+            });
+            const config = await response.json();
+
+            document.getElementById('enabled').checked = config.enabled;
+            document.getElementById('apiKey').value = config.gemini_api_key || '';
+            document.getElementById('payoutSheetId').value = config.payout_sheet_id || '';
+            document.getElementById('payoutWorksheet').value = config.payout_worksheet_name || '';
+            document.getElementById('payoutLanguage').value = config.payout_language || 'de'; // Load language
+            document.getElementById('payoutUserColumn').value = config.payout_user_column || '';
+            document.getElementById('payoutEventRow').value = config.payout_event_row || '';
+            document.getElementById('payoutEventStartColumn').value = config.payout_event_start_column || '';
+            document.getElementById('teamStatsSheetId').value = config.team_stats_sheet_id || '';
+            document.getElementById('teamStatsWorksheet').value = config.team_stats_worksheet_name || '';
+
+            // Load confirmation roles
+            await loadRoles(config.confirmation_roles || []);
+
+            // Load channels and set selected
+            await loadChannels(config.channel_id, config.second_channel_id);
+
+            // Update visibility of second fields based on loaded values
+            updateSecondRoleVisibility();
+
+        } catch (error) {
+            console.error('Failed to load config:', error);
+            showToast('Fehler beim Laden der Konfiguration', toastTypes.ERROR);
+        }
+    }
+
+    // Load channels
+    async function loadChannels(selectedChannelId = null, selectedSecondChannelId = null) {
+        try {
+            const response = await fetch(`/guilds/${guildId}/channels`, {
+                credentials: 'same-origin'
+            });
+            const channels = await response.json();
+
+            // Populate both channel selects
+            populateChannelSelect('channel', channels, selectedChannelId);
+            populateChannelSelect('secondChannel', channels, selectedSecondChannelId);
+
+            // Show/hide second channel field based on first channel selection
+            updateSecondChannelVisibility();
+
+        } catch (error) {
+            console.error('Failed to load channels:', error);
+            showToast('Fehler beim Laden der Kanäle', toastTypes.ERROR);
+        }
+    }
+
+    // Helper function to populate a channel select
+    function populateChannelSelect(selectId, channels, selectedChannelId) {
+        const select = document.getElementById(selectId);
+        select.innerHTML = '<option value="">Kanal auswählen...</option>';
+
+        let currentCategory = null;
+        channels.forEach(channel => {
+            // Add category separator if needed
+            if (channel.category !== currentCategory) {
+                if (channel.category) {
+                    const optgroup = document.createElement('optgroup');
+                    optgroup.label = channel.category;
+                    select.appendChild(optgroup);
+                }
+                currentCategory = channel.category;
+            }
+
+            const option = document.createElement('option');
+            option.value = channel.id;
+            option.textContent = `#${channel.name}`;
+            if (channel.id === selectedChannelId) {
+                option.selected = true;
+            }
+
+            if (channel.category) {
+                select.lastElementChild.appendChild(option);
+            } else {
+                select.appendChild(option);
+            }
+        });
+    }
+
+    // Show/hide second channel field based on first channel selection
+    function updateSecondChannelVisibility() {
+        const firstChannel = document.getElementById('channel').value;
+        const secondChannelField = document.getElementById('secondChannelField');
+
+        if (firstChannel) {
+            secondChannelField.style.display = 'block';
+        } else {
+            secondChannelField.style.display = 'none';
+            // Clear second channel when hiding
+            document.getElementById('secondChannel').value = '';
+        }
+    }
+
+    // Load roles
+    async function loadRoles(selectedRoles = []) {
+        try {
+            const response = await fetch(`/guilds/${guildId}/roles`, {
+                credentials: 'same-origin'
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const roles = await response.json();
+            console.log('Loaded roles:', roles); // Debug log
+
+            // Populate both role selects
+            populateRoleSelect('confirmationRoles', roles, selectedRoles[0] || '');
+            populateRoleSelect('secondConfirmationRole', roles, selectedRoles[1] || '');
+
+            // Show/hide second role field based on first role selection
+            updateSecondRoleVisibility();
+
+        } catch (error) {
+            console.error('Failed to load roles:', error);
+            showToast('Fehler beim Laden der Rollen: ' + error.message, toastTypes.ERROR);
+
+            // Add error state to selects
+            const select = document.getElementById('confirmationRoles');
+            select.innerHTML = '<option value="">Fehler beim Laden der Rollen</option>';
+            const secondSelect = document.getElementById('secondConfirmationRole');
+            secondSelect.innerHTML = '<option value="">Fehler beim Laden der Rollen</option>';
+        }
+    }
+
+    // Helper function to populate a role select
+    function populateRoleSelect(selectId, roles, selectedRoleId) {
+        const select = document.getElementById(selectId);
+        select.innerHTML = '<option value="">Rollen auswählen...</option>';
+
+        if (roles && roles.length > 0) {
+            roles.forEach(role => {
+                const option = document.createElement('option');
+                option.value = role.id;
+                option.textContent = role.name;
+                // Convert both to strings for comparison to handle both string and integer role IDs
+                if (String(role.id) === String(selectedRoleId)) {
+                    option.selected = true;
+                }
+                select.appendChild(option);
+            });
+        } else {
+            // Add a placeholder option if no roles found
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = 'Keine Rollen verfügbar';
+            option.disabled = true;
+            select.appendChild(option);
+        }
+    }
+
+    // Show/hide second role field based on first role selection
+    function updateSecondRoleVisibility() {
+        const firstRole = document.getElementById('confirmationRoles').value;
+        const secondRoleField = document.getElementById('secondRoleField');
+
+        if (firstRole) {
+            secondRoleField.style.display = 'block';
+        } else {
+            secondRoleField.style.display = 'none';
+            // Clear second role when hiding
+            document.getElementById('secondConfirmationRole').value = '';
+        }
+    }
+
+    // Save configuration
+    async function saveConfig() {
+        const enabled = document.getElementById('enabled').checked;
+        const channelId = document.getElementById('channel').value;
+        const secondChannelId = document.getElementById('secondChannel').value;
+        const apiKey = document.getElementById('apiKey').value;
+        const payoutSheetId = document.getElementById('payoutSheetId').value;
+        const payoutWorksheet = document.getElementById('payoutWorksheet').value;
+        const payoutLanguage = document.getElementById('payoutLanguage').value; // Get language
+        const payoutUserColumn = document.getElementById('payoutUserColumn').value;
+        const payoutEventRow = document.getElementById('payoutEventRow').value;
+        const payoutEventStartColumn = document.getElementById('payoutEventStartColumn').value;
+        const teamStatsSheetId = document.getElementById('teamStatsSheetId').value;
+        const teamStatsWorksheet = document.getElementById('teamStatsWorksheet').value;
+        // Get selected roles from simple selects
+        const confirmationRolesSelect = document.getElementById('confirmationRoles');
+        const secondConfirmationRoleSelect = document.getElementById('secondConfirmationRole');
+        let confirmationRoles = [];
+
+        if (confirmationRolesSelect.value) {
+            confirmationRoles.push(String(confirmationRolesSelect.value));
+        }
+
+        if (secondConfirmationRoleSelect.value) {
+            confirmationRoles.push(String(secondConfirmationRoleSelect.value));
+        }
+
+        try {
+            const response = await fetch(`/guilds/${guildId}/image-analysis`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    enabled: enabled,
+                    channel_id: channelId || null,
+                    second_channel_id: secondChannelId || null,
+                    gemini_api_key: apiKey,
+                    payout_sheet_id: payoutSheetId,
+                    payout_worksheet_name: payoutWorksheet,
+                    payout_language: payoutLanguage, // Save language
+                    payout_user_column: payoutUserColumn,
+                    payout_event_row: payoutEventRow ? parseInt(payoutEventRow) : null,
+                    payout_event_start_column: payoutEventStartColumn || null,
+                    confirmation_roles: confirmationRoles,
+                    team_stats_sheet_id: teamStatsSheetId || null,
+                    team_stats_worksheet_name: teamStatsWorksheet || null,
+                }),
+            });
+
+            if (response.ok) {
+                showToast('Konfiguration gespeichert', toastTypes.INFO);
+            } else {
+                throw new Error('Failed to save config');
+            }
+
+        } catch (error) {
+            console.error('Failed to save config:', error);
+            showToast('Fehler beim Speichern der Konfiguration', toastTypes.ERROR);
+        }
+    }
+
+    // Test image analysis
+    async function testImageAnalysis() {
+        const imageUrl = document.getElementById('testImageUrl').value;
+        const submitBtn = document.querySelector('#testForm button[type="submit"]');
+
+        submitBtn.classList.add('is-loading');
+        submitBtn.disabled = true;
+
+        try {
+            const response = await fetch(`/guilds/${guildId}/image-analysis/test`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    image_url: imageUrl
+                }),
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+
+                // Show results
+                document.getElementById('testResults').style.display = 'block';
+                document.getElementById('extractedText').value = result.extracted_text || 'Kein Text extrahiert';
+
+                // Show usernames
+                const usernamesList = document.getElementById('usernamesList');
+                if (result.usernames && result.usernames.length > 0) {
+                    usernamesList.innerHTML = result.usernames.map(username =>
+                        `<span class="tag is-success mr-2 mb-2">${username}</span>`
+                    ).join('');
+                } else {
+                    usernamesList.innerHTML = '<p>Keine Benutzernamen gefunden</p>';
+                }
+
+                showToast('Bildanalyse erfolgreich', toastTypes.INFO);
+            } else {
+                const error = await response.json();
+                throw new Error(error.detail || 'Unbekannter Fehler');
+            }
+        } catch (error) {
+            console.error('Test failed:', error);
+            showToast('Fehler bei der Bildanalyse: ' + error.message, toastTypes.ERROR);
+        } finally {
+            submitBtn.classList.remove('is-loading');
+            submitBtn.disabled = false;
+        }
+    }
+
+    // Test payout tracking
+    async function testPayoutTracking() {
+        const usernamesList = document.getElementById('usernamesList');
+        const testThreadName = document.getElementById('testThreadName').value;
+        const testBtn = document.getElementById('testPayoutBtn');
+
+        // Get usernames from the test results
+        const usernameTags = usernamesList.querySelectorAll('.tag');
+        const usernames = Array.from(usernameTags).map(tag => tag.textContent.trim());
+
+        if (usernames.length === 0) {
+            showToast('Keine Benutzernamen zum Testen vorhanden', toastTypes.ERROR);
+            return;
+        }
+
+        testBtn.classList.add('is-loading');
+        testBtn.disabled = true;
+
+        try {
+            const response = await fetch(`/guilds/${guildId}/image-analysis/test-payout`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    usernames: usernames,
+                    thread_name: testThreadName
+                }),
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+
+                // Show payout results
+                document.getElementById('payoutTestResults').style.display = 'block';
+                const payoutResults = document.getElementById('payoutResults');
+
+                let resultHtml = '';
+                if (result.success) {
+                    resultHtml += `<p><strong>✅ Erfolgreich:</strong> ${result.message}</p>`;
+
+                    if (result.resolved_worksheet) {
+                        resultHtml += `<p><strong>📋 Worksheet:</strong> <code>${result.resolved_worksheet}</code></p>`;
+                    }
+
+                    if (result.matched_users && result.matched_users.length > 0) {
+                        resultHtml += `<p><strong>Gefundene Benutzer (${result.matched_users.length}):</strong></p>`;
+                        resultHtml += `<div class="mt-2">${result.matched_users.map(user =>
+                            `<span class="tag is-success mr-2 mb-2">${user}</span>`
+                        ).join('')}</div>`;
+                    }
+
+                    if (result.unmatched_users && result.unmatched_users.length > 0) {
+                        resultHtml += `<p class="mt-3"><strong>Nicht gefunden (${result.unmatched_users.length}):</strong></p>`;
+                        resultHtml += `<div class="mt-2">${result.unmatched_users.map(user =>
+                            `<span class="tag is-warning mr-2 mb-2">${user}</span>`
+                        ).join('')}</div>`;
+                    }
+                } else {
+                    resultHtml += `<p><strong>❌ Fehler:</strong> ${result.message}</p>`;
+                }
+
+                payoutResults.innerHTML = resultHtml;
+                showToast('Payout-Test erfolgreich', toastTypes.INFO);
+            } else {
+                const error = await response.json();
+                throw new Error(error.detail || 'Unbekannter Fehler');
+            }
+        } catch (error) {
+            console.error('Payout test failed:', error);
+            showToast('Fehler beim Payout-Test: ' + error.message, toastTypes.ERROR);
+        } finally {
+            testBtn.classList.remove('is-loading');
+            testBtn.disabled = false;
+        }
+    }
+
+    // Event listeners
+    document.addEventListener('DOMContentLoaded', function () {
+        console.log('DOM loaded, starting config load...'); // Debug log
+        loadConfig();
+
+        document.getElementById('configForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+            saveConfig();
+        });
+
+        document.getElementById('testForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+            testImageAnalysis();
+        });
+
+        document.getElementById('testPayoutBtn').addEventListener('click', function (e) {
+            e.preventDefault();
+            testPayoutTracking();
+        });
+
+        // Add event listener for first channel selection to show/hide second channel
+        document.getElementById('channel').addEventListener('change', function () {
+            updateSecondChannelVisibility();
+        });
+
+        // Add event listener for first role selection to show/hide second role
+        document.getElementById('confirmationRoles').addEventListener('change', function () {
+            updateSecondRoleVisibility();
+        });
+
+        // Debug: Test roles loading manually (disabled to avoid conflicts)
+        // setTimeout(() => {
+        //     console.log('Testing roles loading manually...');
+        //     loadRoles([]);
+        // }, 2000);
+    });
+</script>
+{% endblock %}
