@@ -149,14 +149,27 @@
                 <div class="field">
                     <label class="label">Berechtigte Rollen</label>
                     <div class="control">
-                        <div class="select is-fullwidth is-multiple">
-                            <select id="confirmationRoles" multiple size="6">
-                                <!-- Roles will be populated by JavaScript -->
+                        <div class="select is-fullwidth">
+                            <select id="confirmationRoles">
+                                <option value="">Rollen auswählen...</option>
                             </select>
                         </div>
                     </div>
                     <p class="help">Benutzer müssen mindestens eine der ausgewählten Rollen haben, um bestätigen zu
                         können. Leer lassen, um allen zu erlauben.</p>
+                </div>
+
+                <!-- Second Role Selection (hidden by default) -->
+                <div class="field" id="secondRoleField" style="display: none;">
+                    <label class="label">Zweite berechtigte Rolle (optional)</label>
+                    <div class="control">
+                        <div class="select is-fullwidth">
+                            <select id="secondConfirmationRole">
+                                <option value="">Rolle auswählen...</option>
+                            </select>
+                        </div>
+                    </div>
+                    <p class="help">Optional: Eine zweite Rolle, die ebenfalls berechtigt ist</p>
                 </div>
 
                 <hr class="my-4">
@@ -380,6 +393,9 @@
             // Load channels and set selected
             await loadChannels(config.channel_id, config.second_channel_id);
 
+            // Update visibility of second fields based on loaded values
+            updateSecondRoleVisibility();
+
         } catch (error) {
             console.error('Failed to load config:', error);
             showToast('Fehler beim Laden der Konfiguration', toastTypes.ERROR);
@@ -467,87 +483,62 @@
             const roles = await response.json();
             console.log('Loaded roles:', roles); // Debug log
 
-            const select = document.getElementById('confirmationRoles');
-            select.innerHTML = ''; // Clear existing options
+            // Populate both role selects
+            populateRoleSelect('confirmationRoles', roles, selectedRoles[0] || '');
+            populateRoleSelect('secondConfirmationRole', roles, selectedRoles[1] || '');
 
-            // Add options to select
-            if (roles && roles.length > 0) {
-                roles.forEach(role => {
-                    const option = document.createElement('option');
-                    option.value = role.id;
-                    option.textContent = role.name;
-                    if (selectedRoles.includes(role.id)) {
-                        option.selected = true;
-                    }
-                    select.appendChild(option);
-                });
-            } else {
-                // Add a placeholder option if no roles found
-                const option = document.createElement('option');
-                option.value = '';
-                option.textContent = 'Keine Rollen verfügbar';
-                option.disabled = true;
-                select.appendChild(option);
-            }
-
-            console.log('Added options to select:', select.options.length); // Debug log
-
-            // Safely destroy existing Choices instance if it exists
-            if (select.choices && typeof select.choices.destroy === 'function') {
-                try {
-                    select.choices.destroy();
-                } catch (e) {
-                    console.warn('Error destroying existing Choices instance:', e);
-                }
-            }
-
-            // Clear any existing Choices.js elements
-            const existingChoices = select.parentElement.querySelectorAll('.choices');
-            existingChoices.forEach(el => {
-                if (el !== select) {
-                    el.remove();
-                }
-            });
-
-            // Initialize Choices.js with the populated select
-            try {
-                // Check if Choices is available
-                if (typeof Choices === 'undefined') {
-                    console.warn('Choices.js not available, using standard select');
-                    select.style.display = 'block';
-                    return;
-                }
-
-                // eslint-disable-next-line no-undef
-                select.choices = new Choices(select, {
-                    searchEnabled: true,
-                    itemSelectText: '',
-                    renderSelectedChoices: 'always',
-                    removeItemButton: true,
-                    placeholder: true,
-                    placeholderValue: 'Rollen auswählen...',
-                    noResultsText: 'Keine Rollen gefunden'
-                });
-            } catch (e) {
-                console.error('Error initializing Choices.js:', e);
-                // Fallback: use standard select
-                select.style.display = 'block';
-            }
-
-            console.log('Choices.js initialized'); // Debug log
+            // Show/hide second role field based on first role selection
+            updateSecondRoleVisibility();
 
         } catch (error) {
             console.error('Failed to load roles:', error);
             showToast('Fehler beim Laden der Rollen: ' + error.message, toastTypes.ERROR);
 
-            // Add error state to select
+            // Add error state to selects
             const select = document.getElementById('confirmationRoles');
-            select.innerHTML = '';
-            const errorOption = document.createElement('option');
-            errorOption.value = '';
-            errorOption.textContent = 'Fehler beim Laden der Rollen';
-            errorOption.disabled = true;
-            select.appendChild(errorOption);
+            select.innerHTML = '<option value="">Fehler beim Laden der Rollen</option>';
+            const secondSelect = document.getElementById('secondConfirmationRole');
+            secondSelect.innerHTML = '<option value="">Fehler beim Laden der Rollen</option>';
+        }
+    }
+
+    // Helper function to populate a role select
+    function populateRoleSelect(selectId, roles, selectedRoleId) {
+        const select = document.getElementById(selectId);
+        select.innerHTML = '<option value="">Rollen auswählen...</option>';
+
+        if (roles && roles.length > 0) {
+            roles.forEach(role => {
+                const option = document.createElement('option');
+                option.value = role.id;
+                option.textContent = role.name;
+                // Convert both to strings for comparison to handle both string and integer role IDs
+                if (String(role.id) === String(selectedRoleId)) {
+                    option.selected = true;
+                }
+                select.appendChild(option);
+            });
+        } else {
+            // Add a placeholder option if no roles found
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = 'Keine Rollen verfügbar';
+            option.disabled = true;
+            select.appendChild(option);
+        }
+    }
+
+    // Show/hide second role field based on first role selection
+    function updateSecondRoleVisibility() {
+        const firstRole = document.getElementById('confirmationRoles').value;
+        const secondRoleField = document.getElementById('secondRoleField');
+
+        if (firstRole) {
+            secondRoleField.style.display = 'block';
+        } else {
+            secondRoleField.style.display = 'none';
+            // Clear second role when hiding
+            document.getElementById('secondConfirmationRole').value = '';
         }
     }
 
@@ -565,15 +556,17 @@
         const payoutEventStartColumn = document.getElementById('payoutEventStartColumn').value;
         const teamStatsSheetId = document.getElementById('teamStatsSheetId').value;
         const teamStatsWorksheet = document.getElementById('teamStatsWorksheet').value;
-        // Get selected roles from Choices.js
+        // Get selected roles from simple selects
         const confirmationRolesSelect = document.getElementById('confirmationRoles');
+        const secondConfirmationRoleSelect = document.getElementById('secondConfirmationRole');
         let confirmationRoles = [];
-        if (confirmationRolesSelect.choices) {
-            // Use Choices.js API to get selected values
-            confirmationRoles = confirmationRolesSelect.choices.getValue().map(item => item.value);
-        } else {
-            // Fallback to standard select
-            confirmationRoles = Array.from(confirmationRolesSelect.selectedOptions).map(option => option.value);
+
+        if (confirmationRolesSelect.value) {
+            confirmationRoles.push(String(confirmationRolesSelect.value));
+        }
+
+        if (secondConfirmationRoleSelect.value) {
+            confirmationRoles.push(String(secondConfirmationRoleSelect.value));
         }
 
         try {
@@ -764,6 +757,11 @@
         // Add event listener for first channel selection to show/hide second channel
         document.getElementById('channel').addEventListener('change', function () {
             updateSecondChannelVisibility();
+        });
+
+        // Add event listener for first role selection to show/hide second role
+        document.getElementById('confirmationRoles').addEventListener('change', function () {
+            updateSecondRoleVisibility();
         });
 
         // Debug: Test roles loading manually (disabled to avoid conflicts)

@@ -115,6 +115,7 @@ class ImageAnalysis(commands.Cog):
         """Get list of role IDs that are allowed to confirm usernames."""
         roles = cfg.get(CONFIRMATION_ROLES_KEY, [])
         if isinstance(roles, list):
+            # Convert string role IDs to integers for Discord API comparison
             return [int(role_id) for role_id in roles if str(role_id).isdigit()]
         return []
 

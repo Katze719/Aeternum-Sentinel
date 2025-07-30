@@ -29,7 +29,7 @@ async def get_image_analysis_config(guild_id: int, request: Request):
         "payout_event_row": cfg.get("payout_event_row", ""),
         "payout_event_start_column": cfg.get("payout_event_start_column", ""),
         "payout_language": cfg.get("payout_language", "de"),
-        "confirmation_roles": cfg.get("confirmation_roles", []),
+        "confirmation_roles": [str(role_id) for role_id in cfg.get("confirmation_roles", [])],
         "team_stats_sheet_id": cfg.get("team_stats_sheet_id", ""),
         "team_stats_worksheet_name": cfg.get("team_stats_worksheet_name", ""),
     }
@@ -74,7 +74,7 @@ async def set_image_analysis_config(guild_id: int, request: Request, payload: di
         cfg["payout_language"] = payload["payout_language"]
     
     if "confirmation_roles" in payload:
-        cfg["confirmation_roles"] = payload["confirmation_roles"]
+        cfg["confirmation_roles"] = [str(role_id) for role_id in payload["confirmation_roles"]]
     
     if "team_stats_sheet_id" in payload:
         cfg["team_stats_sheet_id"] = payload["team_stats_sheet_id"]
