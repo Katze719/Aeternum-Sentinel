@@ -8,17 +8,23 @@
 - **Referenznamen-System:** Team-Zusammensetzung wird zuerst analysiert und dient als Referenz für Stats-Analyse
 - **Konsistente Namensschreibweisen:** Spielernamen aus dem Composition-Bild werden als Standard verwendet
 - **Intelligente Namenszuordnung:** KI gleicht Stats-Namen mit Referenznamen ab für höchste Genauigkeit
+- **Manuelle Namenszuordnung:** Bearbeiten-Button für manuelle Korrektur von Spielernamen
+- **Auto-Solve Feature:** KI-basierte automatische Zuordnung von misspelled Namen zu Referenznamen
+- **Re-Analyse für fehlende Spieler:** "Neu analysieren" Button wenn Composition-Spieler in Stats fehlen
 
 ### 🔧 **Technische Verbesserungen**
 - **Reihenfolge optimiert:** Composition-Bild wird vor Stats-Bild analysiert für bessere Qualität
 - **Robuste KI-Prompts:** Erweiterte Anweisungen für Pfeffi KI mit Referenznamen-Validierung
 - **Duplikat-Vermeidung:** Automatische Entfernung doppelter Namen und alphabetische Sortierung
+- **Enemy-Stats Persistierung:** Enemy-Stats gehen nicht mehr verloren bei Namens-Korrekturen
+- **Modal-Label-Optimierung:** Kürzere Labels für bessere Discord-Kompatibilität
 
 ### 🐛 **Bugfixes**
 - **Namens-Inkonsistenzen:** Keine unterschiedlichen Schreibweisen für denselben Spieler mehr
 - **Fehlende Spieler:** Spieler die nur in Stats aber nicht in Composition stehen werden übersprungen
 - **Analyse-Robustheit:** Verbesserte Fehlerbehandlung bei unvollständigen oder fehlerhaften Bildern
 - **Spieler-Check:** Warnung wenn nicht alle Composition-Spieler in Stats gefunden wurden
+- **Enemy-Stats Verlust:** Enemy-Stats werden korrekt erhalten und weitergegeben
 
 ---
 
