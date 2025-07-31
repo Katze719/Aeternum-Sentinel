@@ -177,7 +177,7 @@ class ImageAnalysis(commands.Cog):
             _log.error(f"Failed to call Gemini API: {e}")
             return None
 
-    async def _call_gemini_api_for_team_stats(self, image_data: bytes, api_key: str, image_type: str) -> Optional[str]:
+    async def _call_gemini_api_for_team_stats(self, image_data: bytes, api_key: str, image_type: str, reference_names: List[str] = None) -> Optional[str]:
         """Call Gemini API to extract team statistics or team composition data."""
         try:
             import google.generativeai as genai
@@ -190,24 +190,51 @@ class ImageAnalysis(commands.Cog):
             image_base64 = base64.b64encode(image_data).decode('utf-8')
             
             if image_type == "stats":
-                prompt = """
-                Analyze this image showing team statistics/leaderboard data.
-                
-                Extract all player statistics from the image and return them as a JSON array.
-                Each player should be an object with these fields:
-                - "name": the player's name/username
-                - "kills": number of kills (integer)
-                - "deaths": number of deaths (integer) 
-                - "assists": number of assists (integer)
-                - "healing": healing amount (integer, 0 if not present)
-                - "damage": damage amount (integer, 0 if not present)
-                
-                Important: Return ONLY valid JSON, no other text or explanations.
-                If you cannot extract the data, return an empty array: []
-                
-                Example response:
-                [{"name":"Player1","kills":15,"deaths":3,"assists":8,"healing":1250000,"damage":450000},{"name":"Player2","kills":12,"deaths":5,"assists":10,"healing":980000,"damage":380000}]
-                """
+                # If we have reference names from composition, use them to ensure consistency
+                if reference_names:
+                    prompt = f"""
+                    Analyze this image showing team statistics/leaderboard data.
+                    
+                    IMPORTANT: You must match the player names in this image with the following reference names from the team composition:
+                    {', '.join(reference_names)}
+                    
+                    Extract all player statistics from the image and return them as a JSON array.
+                    Each player should be an object with these fields:
+                    - "name": the player's name/username (MUST match one of the reference names exactly)
+                    - "kills": number of kills (integer)
+                    - "deaths": number of deaths (integer) 
+                    - "assists": number of assists (integer)
+                    - "healing": healing amount (integer, 0 if not present)
+                    - "damage": damage amount (integer, 0 if not present)
+                    
+                    CRITICAL: Only include players whose names match the reference names. If you find a player in the stats but can't match their name to the reference list, skip them.
+                    If you can't find a player in the stats for a reference name, that's okay - only include the players you can find.
+                    
+                    Important: Return ONLY valid JSON, no other text or explanations.
+                    If you cannot extract the data, return an empty array: []
+                    
+                    Example response:
+                    [{{"name":"{reference_names[0] if reference_names else 'Player1'}","kills":15,"deaths":3,"assists":8,"healing":1250000,"damage":450000}}]
+                    """
+                else:
+                    prompt = """
+                    Analyze this image showing team statistics/leaderboard data.
+                    
+                    Extract all player statistics from the image and return them as a JSON array.
+                    Each player should be an object with these fields:
+                    - "name": the player's name/username
+                    - "kills": number of kills (integer)
+                    - "deaths": number of deaths (integer) 
+                    - "assists": number of assists (integer)
+                    - "healing": healing amount (integer, 0 if not present)
+                    - "damage": damage amount (integer, 0 if not present)
+                    
+                    Important: Return ONLY valid JSON, no other text or explanations.
+                    If you cannot extract the data, return an empty array: []
+                    
+                    Example response:
+                    [{"name":"Player1","kills":15,"deaths":3,"assists":8,"healing":1250000,"damage":450000},{"name":"Player2","kills":12,"deaths":5,"assists":10,"healing":980000,"damage":380000}]
+                    """
             else:  # team composition
                 prompt = """
                 Analyze this image showing team composition/group assignments.
@@ -1142,30 +1169,8 @@ class ImageAnalysis(commands.Cog):
                 await interaction.edit_original_response(embed=embed)
                 return
             
-            # Process team statistics image
-            await update_status("🔄 **Schritt 2:** Team-Statistiken werden analysiert...")
-            stats_response = await self._call_gemini_api_for_team_stats(stats_image_data, api_key, "stats")
-            if not stats_response:
-                embed = discord.Embed(
-                    title="❌ Konnte keine Team-Statistiken extrahieren",
-                    description="Das Stats-Bild konnte nicht verarbeitet werden.",
-                    color=discord.Color.red()
-                )
-                await interaction.edit_original_response(embed=embed)
-                return
-            
-            team_stats = self._parse_team_stats_json(stats_response)
-            if not team_stats:
-                embed = discord.Embed(
-                    title="❌ Konnte keine gültigen Team-Statistiken extrahieren",
-                    description="Das Stats-Bild enthielt keine verwertbaren Daten.",
-                    color=discord.Color.red()
-                )
-                await interaction.edit_original_response(embed=embed)
-                return
-            
-            # Process team composition image
-            await update_status("🔄 **Schritt 3:** Team-Zusammensetzung wird analysiert...")
+            # Process team composition image FIRST to get reference names
+            await update_status("🔄 **Schritt 2:** Team-Zusammensetzung wird analysiert...")
             composition_response = await self._call_gemini_api_for_team_stats(composition_image_data, api_key, "composition")
             if not composition_response:
                 embed = discord.Embed(
@@ -1186,7 +1191,65 @@ class ImageAnalysis(commands.Cog):
                 await interaction.edit_original_response(embed=embed)
                 return
             
-            # Process enemy statistics image
+            # Extract all player names from composition as reference names
+            reference_names = []
+            for group_name, players in team_composition.items():
+                reference_names.extend(players)
+            
+            # Remove duplicates and sort for consistency
+            reference_names = sorted(list(set(reference_names)))
+            
+            # Process team statistics image using reference names for consistency
+            await update_status("🔄 **Schritt 3:** Team-Statistiken werden analysiert (mit Referenznamen)...")
+            stats_response = await self._call_gemini_api_for_team_stats(stats_image_data, api_key, "stats", reference_names)
+            if not stats_response:
+                embed = discord.Embed(
+                    title="❌ Konnte keine Team-Statistiken extrahieren",
+                    description="Das Stats-Bild konnte nicht verarbeitet werden.",
+                    color=discord.Color.red()
+                )
+                await interaction.edit_original_response(embed=embed)
+                return
+            
+            team_stats = self._parse_team_stats_json(stats_response)
+            if not team_stats:
+                embed = discord.Embed(
+                    title="❌ Konnte keine gültigen Team-Statistiken extrahieren",
+                    description="Das Stats-Bild enthielt keine verwertbaren Daten.",
+                    color=discord.Color.red()
+                )
+                await interaction.edit_original_response(embed=embed)
+                return
+            
+            # Check if we found enough players in stats compared to composition
+            composition_player_count = len(reference_names)
+            stats_player_count = len(team_stats)
+            
+            if stats_player_count < composition_player_count:
+                embed = discord.Embed(
+                    title="⚠️ Warnung: Nicht alle Spieler in Stats gefunden",
+                    description=f"Im Composition-Bild wurden **{composition_player_count}** Spieler gefunden, aber nur **{stats_player_count}** in den Team-Statistiken.\n\n"
+                              f"**Fehlende Spieler:** {', '.join([name for name in reference_names if name not in [player['name'] for player in team_stats]])}\n\n"
+                              f"Möchtest du trotzdem fortfahren?",
+                    color=discord.Color.orange()
+                )
+                embed.add_field(
+                    name="📊 Gefundene Spieler",
+                    value=", ".join([f"`{player['name']}`" for player in team_stats]),
+                    inline=False
+                )
+                embed.add_field(
+                    name="❓ Aktion",
+                    value="Klicke auf 'Fortfahren' um mit den gefundenen Spielern zu arbeiten, oder 'Abbrechen' um die Analyse zu wiederholen.",
+                    inline=False
+                )
+                
+                # Create confirmation view
+                view = TeamStatsConfirmationView(self, team_stats, team_composition, enemy_stats, guild.id, event_name, update_status)
+                await interaction.edit_original_response(embed=embed, view=view)
+                return
+            
+            # Process enemy statistics image (without reference names since they're opponents)
             await update_status("🔄 **Schritt 4:** Gegner-Statistiken werden analysiert...")
             enemy_response = await self._call_gemini_api_for_team_stats(enemy_stats_image_data, api_key, "stats")
             if not enemy_response:
@@ -1500,6 +1563,78 @@ class UsernameEditView(discord.ui.View):
             embed.set_image(url=interaction.message.embeds[0].image.url)
         
         await interaction.message.edit(embed=embed)
+
+
+class TeamStatsConfirmationView(discord.ui.View):
+    """Confirmation view for team stats when not all players were found."""
+    
+    def __init__(self, cog: ImageAnalysis, team_stats: List[Dict], team_composition: Dict[str, List[str]], enemy_stats: List[Dict], guild_id: int, event_name: str, status_callback):
+        super().__init__(timeout=300)  # 5 minutes timeout
+        self.cog = cog
+        self.team_stats = team_stats
+        self.team_composition = team_composition
+        self.enemy_stats = enemy_stats
+        self.guild_id = guild_id
+        self.event_name = event_name
+        self.status_callback = status_callback
+
+    @discord.ui.button(label="Fortfahren", style=discord.ButtonStyle.green, emoji="✅")
+    async def continue_with_found_players(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Continue with the found players."""
+        # Disable all buttons
+        for child in self.children:
+            child.disabled = True
+        
+        # Update the message to show processing
+        embed = interaction.message.embeds[0]
+        embed.color = discord.Color.yellow()
+        embed.title = "⏳ Verarbeitung läuft..."
+        embed.description = f"Verarbeite **{len(self.team_stats)}** gefundene Spieler..."
+        embed.remove_field(0)  # Remove the found players field
+        embed.remove_field(0)  # Remove the action field
+        embed.set_footer(text="Wird verarbeitet...")
+        
+        await interaction.message.edit(embed=embed, view=self)
+        
+        # Acknowledge the interaction
+        await interaction.response.defer(thinking=False)
+        
+        # Continue with the table creation
+        await self.status_callback("🔄 **Schritt 5:** Google Sheets Tabelle wird erstellt...")
+        result = await self.cog._create_team_stats_table(self.team_stats, self.team_composition, self.enemy_stats, self.guild_id, self.event_name, self.status_callback)
+        
+        if result["success"]:
+            embed = discord.Embed(
+                title="✅ Team Statistics Tabelle erstellt",
+                description=result["message"],
+                color=discord.Color.green()
+            )
+            embed.add_field(
+                name="📊 Verarbeitete Daten",
+                value=f"• **{len(self.team_stats)}** Team-Spieler-Statistiken\n• **{len(self.enemy_stats)}** Gegner-Spieler-Statistiken\n• **{len(self.team_composition)}** Gruppen\n• **{result['created_rows']}** Zeilen erstellt",
+                inline=False
+            )
+            embed.add_field(
+                name="📋 Gefundene Gruppen",
+                value="\n".join([f"• {group}" for group in self.team_composition.keys()]),
+                inline=False
+            )
+            embed.set_footer(text=f"Erstellt von {interaction.user.display_name}")
+            
+            await interaction.message.edit(embed=embed, view=self)
+        else:
+            embed = discord.Embed(
+                title="❌ Fehler beim Erstellen der Tabelle",
+                description=result['message'],
+                color=discord.Color.red()
+            )
+            await interaction.message.edit(embed=embed, view=self)
+
+    @discord.ui.button(label="Abbrechen", style=discord.ButtonStyle.red, emoji="❌")
+    async def cancel_analysis(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Cancel the analysis."""
+        await interaction.response.send_message("❌ Team-Statistiken Analyse abgebrochen.", ephemeral=True)
+        await interaction.message.delete()
 
 
 class EditUsernamesModal(discord.ui.Modal, title="Benutzernamen bearbeiten"):
