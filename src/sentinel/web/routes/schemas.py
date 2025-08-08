@@ -41,3 +41,17 @@ class ReviewMessagePayload(BaseModel):
 
 class VodLinkPayload(BaseModel):
     link: str 
+
+
+class ReactionRoleItem(BaseModel):
+    emoji_id: str | None = None
+    emoji_name: str | None = None
+    emoji_unicode: str | None = None
+    role_id: str
+    description: str | None = None
+
+class ReactionRolesPayload(BaseModel):
+    channel_id: str
+    title: str | None = None
+    description: str | None = None
+    items: list[ReactionRoleItem] = [] 

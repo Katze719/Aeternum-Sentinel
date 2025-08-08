@@ -247,6 +247,68 @@
 
 <div class="card mb-6">
     <header class="card-header">
+        <p class="card-header-title">🧩 Reaction Roles</p>
+    </header>
+    <div class="card-content">
+        <p class="mb-3">Konfiguriere eine Nachricht, unter der Mitglieder mit Emojis Rollen erhalten bzw. entfernen.</p>
+        <form id="reactionRolesForm" style="max-width:900px">
+            <div class="field">
+                <label class="label">Ziel-Channel</label>
+                <div class="control">
+                    <select id="rr_channel" required>
+                        <option value="" disabled selected>Text-Channel wählen</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="field">
+                <label class="label">Titel</label>
+                <div class="control">
+                    <input class="input" id="rr_title" type="text" placeholder="Wähle deine Rollen">
+                </div>
+            </div>
+
+            <div class="field">
+                <label class="label">Allgemeine Beschreibung</label>
+                <div class="control">
+                    <textarea class="textarea" id="rr_description" rows="3"
+                        placeholder="Reagiere mit einem Emoji, um eine Rolle zu erhalten."></textarea>
+                </div>
+            </div>
+
+            <div class="field">
+                <label class="label">Emoji → Rolle Zuordnungen</label>
+                <div class="table-container">
+                    <table class="table is-fullwidth is-striped">
+                        <thead>
+                            <tr>
+                                <th style="width:220px">Emoji</th>
+                                <th style="width:380px">Rolle</th>
+                                <th>Beschreibung</th>
+                                <th style="width:60px"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="rr_items_body"></tbody>
+                    </table>
+                </div>
+                <button id="rr_add_item" class="button is-light" type="button">➕ Zeile hinzufügen</button>
+            </div>
+
+            <div class="field is-grouped">
+                <div class="control">
+                    <button class="button is-primary" type="submit">Speichern</button>
+                </div>
+                <div class="control">
+                    <button id="rr_publish" class="button is-link" type="button">Nachricht
+                        veröffentlichen/aktualisieren</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card mb-6">
+    <header class="card-header">
         <p class="card-header-title">🔍 Bildanalyse</p>
     </header>
     <div class="card-content">
@@ -261,6 +323,7 @@
     </div>
 </div>
 
+<script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@^1/index.js"></script>
 <script>
     async function deleteIcon(btn, roleId) {
         btn.classList.add('is-loading');
@@ -419,6 +482,221 @@
         submitBtn.classList.remove('is-loading');
         submitBtn.disabled = false;
     });
+
+    // ---- Reaction Roles ----
+    (function () {
+        const channelsSelect = document.getElementById('rr_channel');
+        const itemsBody = document.getElementById('rr_items_body');
+        const addBtn = document.getElementById('rr_add_item');
+        let rolesCache = [];
+        let emojisCache = [];
+
+        function createItemRow(item = {}) {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>
+                    <div class="field has-addons">
+                        <p class="control is-expanded">
+                            <input class="input rr_emoji_input" type="text" placeholder=":custom_emoji: oder 😀" />
+                        </p>
+                        <p class="control">
+                            <button class="button is-link is-light is-rounded rr_pick_emoji" type="button" title="Emoji auswählen">😊</button>
+                        </p>
+                    </div>
+                </td>
+                <td>
+                    <div class="select is-fullwidth">
+                        <select class="rr_role_select"></select>
+                    </div>
+                </td>
+                <td>
+                    <input class="input rr_desc" type="text" placeholder="Beschreibung (optional)">
+                </td>
+                <td>
+                    <button class="button is-danger is-light rr_del" type="button">✖</button>
+                </td>
+            `;
+            itemsBody.appendChild(tr);
+
+            // Wire delete
+            tr.querySelector('.rr_del').addEventListener('click', () => tr.remove());
+
+            // Emoji input (accepts unicode or :name: for custom)
+            const emojiInput = tr.querySelector('.rr_emoji_input');
+            if (item.emoji_unicode) {
+                emojiInput.value = item.emoji_unicode;
+            } else if (item.emoji_name) {
+                emojiInput.value = `:${item.emoji_name}:`;
+            }
+
+            emojiInput.addEventListener('focus', () => {
+                // remember manual edits
+                tr.dataset.emojiUnicode = '';
+            });
+
+            // Emoji picker button
+            const pickBtn = tr.querySelector('.rr_pick_emoji');
+            pickBtn.addEventListener('click', () => openEmojiPicker(tr));
+
+            // Populate role select
+            const roleSelect = tr.querySelector('.rr_role_select');
+            rolesCache.forEach(r => {
+                const opt = document.createElement('option');
+                opt.value = r.id;
+                opt.textContent = r.name;
+                roleSelect.appendChild(opt);
+            });
+
+            if (item.role_id) roleSelect.value = String(item.role_id);
+            if (item.description) tr.querySelector('.rr_desc').value = item.description;
+        }
+
+        async function loadChannels() {
+            const res = await fetch(`/guilds/{{ guild.id }}/channels`);
+            const data = await res.json();
+            data.forEach(ch => {
+                const opt = document.createElement('option');
+                opt.value = ch.id;
+                opt.textContent = ch.category ? `${ch.category} / #${ch.name}` : `#${ch.name}`;
+                channelsSelect.appendChild(opt);
+            });
+        }
+
+        function openEmojiPicker(tr) {
+            // Use emoji-picker-element web component for a Discord-like picker
+            let picker = document.querySelector('emoji-picker');
+            if (!picker) {
+                picker = document.createElement('emoji-picker');
+                picker.style.position = 'fixed';
+                picker.style.bottom = '20px';
+                picker.style.right = '20px';
+                picker.style.zIndex = '9999';
+                document.body.appendChild(picker);
+            }
+
+            const onPick = (event) => {
+                const val = event.detail.unicode;
+                if (val) {
+                    tr.dataset.emojiUnicode = val;
+                    const inp = tr.querySelector('.rr_emoji_input');
+                    if (inp) inp.value = val;
+                }
+                picker.removeEventListener('emoji-click', onPick);
+            };
+
+            picker.addEventListener('emoji-click', onPick);
+        }
+
+        async function loadRolesAndEmojis() {
+            const [rolesRes, emojisRes] = await Promise.all([
+                fetch(`/guilds/{{ guild.id }}/roles`),
+                fetch(`/guilds/{{ guild.id }}/emojis`)
+            ]);
+            rolesCache = await rolesRes.json();
+            emojisCache = await emojisRes.json();
+        }
+
+        async function loadConfig() {
+            const res = await fetch(`/guilds/{{ guild.id }}/reaction-roles`);
+            if (!res.ok) return;
+            const rr = await res.json();
+            if (!rr) return;
+            if (rr.channel_id) channelsSelect.value = rr.channel_id;
+            if (rr.title) document.getElementById('rr_title').value = rr.title;
+            if (rr.description) document.getElementById('rr_description').value = rr.description;
+            (rr.items || []).forEach(it => createItemRow(it));
+            // If there were no items, create one empty row for convenience
+            if (!rr.items || rr.items.length === 0) createItemRow();
+        }
+
+        addBtn.addEventListener('click', () => createItemRow());
+
+        document.getElementById('reactionRolesForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            submitBtn.classList.add('is-loading');
+            submitBtn.disabled = true;
+
+            const items = [];
+            itemsBody.querySelectorAll('tr').forEach(tr => {
+                const emojiSel = tr.querySelector('.rr_emoji_select');
+                const roleSel = tr.querySelector('.rr_role_select');
+                const desc = tr.querySelector('.rr_desc').value.trim();
+
+                const item = { description: desc };
+                const emojiVal = (tr.querySelector('.rr_emoji_input').value || '').trim();
+                if (!emojiVal) return; // skip incomplete
+
+                if (emojiVal.starts_with && emojiVal.starts_with(':') || /^:.+:$/.test(emojiVal)) {
+                    // format :name: -> resolve to custom emoji by name if exists
+                    const name = emojiVal.replace(/^:/, '').replace(/:$/, '');
+                    const em = emojisCache.find(e => e.name.toLowerCase() === name.toLowerCase());
+                    if (!em) return; // unknown custom emoji
+                    item.emoji_id = em.id;
+                    item.emoji_name = em.name;
+                } else {
+                    // assume unicode emoji(s) – take first char/emoji cluster
+                    item.emoji_unicode = emojiVal;
+                }
+
+                if (!roleSel.value) return;
+                item.role_id = roleSel.value;
+                items.push(item);
+            });
+
+            const payload = {
+                channel_id: channelsSelect.value,
+                title: document.getElementById('rr_title').value.trim(),
+                description: document.getElementById('rr_description').value.trim(),
+                items
+            };
+
+            await fetch(`/guilds/{{ guild.id }}/reaction-roles`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            window.showToast('Reaction-Roles gespeichert', window.toastTypes.INFO);
+            submitBtn.classList.remove('is-loading');
+            submitBtn.disabled = false;
+        });
+
+        document.getElementById('rr_publish').addEventListener('click', async () => {
+            const btn = document.getElementById('rr_publish');
+            btn.classList.add('is-loading');
+            btn.disabled = true;
+            try {
+                const resp = await fetch(`/guilds/{{ guild.id }}/reaction-roles/publish`, { method: 'POST' });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    window.showToast('✅ Nachricht veröffentlicht (ID ' + data.message_id + ')', window.toastTypes.INFO);
+                } else {
+                    const err = await resp.json();
+                    window.showToast('❌ Fehler: ' + (err.detail || resp.statusText), window.toastTypes.ERROR);
+                }
+            } catch (err) {
+                window.showToast('❌ Netzwerkfehler: ' + err, window.toastTypes.ERROR);
+            }
+            btn.classList.remove('is-loading');
+            btn.disabled = false;
+        });
+
+        (async () => {
+            try {
+                await Promise.all([loadChannels(), loadRolesAndEmojis()]);
+            } catch (e) {
+                console.error('Failed to load roles/emojis/channels', e);
+            }
+            try {
+                await loadConfig();
+            } catch (e) {
+                console.warn('No existing reaction-role config', e);
+            }
+            if (!itemsBody.children.length) {
+                createItemRow();
+            }
+        })();
+    })();
 
     // ---- VOD Link Config ----
     document.getElementById('vodLinkForm').addEventListener('submit', async (e) => {
