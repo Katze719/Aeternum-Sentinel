@@ -19,6 +19,8 @@ _log = logging.getLogger(__name__)
 IMAGE_ANALYSIS_ENABLED_KEY = "image_analysis_enabled"
 IMAGE_ANALYSIS_CHANNEL_KEY = "image_analysis_channel_id"
 IMAGE_ANALYSIS_SECOND_CHANNEL_KEY = "image_analysis_second_channel_id"
+IMAGE_ANALYSIS_CHANNEL_VALUE_KEY = "image_analysis_channel_value"
+IMAGE_ANALYSIS_SECOND_CHANNEL_VALUE_KEY = "image_analysis_second_channel_value"
 GEMINI_API_KEY_KEY = "gemini_api_key"
 PAYOUT_SHEET_KEY = "payout_sheet_id"
 PAYOUT_WORKSHEET_KEY = "payout_worksheet_name"
@@ -64,6 +66,16 @@ class ImageAnalysis(commands.Cog):
     def _get_second_channel_id(cfg: dict) -> Optional[int]:
         channel_id = cfg.get(IMAGE_ANALYSIS_SECOND_CHANNEL_KEY)
         return int(channel_id) if channel_id else None
+
+    @staticmethod
+    def _get_channel_value(cfg: dict) -> int:
+        value = cfg.get(IMAGE_ANALYSIS_CHANNEL_VALUE_KEY)
+        return int(value) if value else 1
+
+    @staticmethod
+    def _get_second_channel_value(cfg: dict) -> int:
+        value = cfg.get(IMAGE_ANALYSIS_SECOND_CHANNEL_VALUE_KEY)
+        return int(value) if value else 2
 
     @staticmethod
     def _get_gemini_api_key(cfg: dict) -> Optional[str]:
@@ -428,7 +440,7 @@ class ImageAnalysis(commands.Cog):
         
         return resolved
 
-    async def _process_payout_tracking(self, usernames: List[str], thread_name: str, guild_id: int, status_callback=None) -> Dict:
+    async def _process_payout_tracking(self, usernames: List[str], thread_name: str, guild_id: int, status_callback=None, channel_value: int = 1) -> Dict:
         """Process payout tracking for extracted usernames."""
         cfg = storage.load_guild_config(guild_id)
         
@@ -588,7 +600,7 @@ class ImageAnalysis(commands.Cog):
                     row = user["row"]
                     if row not in row_updates:
                         row_updates[row] = {}
-                    row_updates[row][target_col] = "1"
+                    row_updates[row][target_col] = str(channel_value)
                 
                 # Perform bulk updates
                 for row, col_updates in row_updates.items():
@@ -599,7 +611,7 @@ class ImageAnalysis(commands.Cog):
                     # Create row data with empty cells except for the target column
                     row_data = [""] * (max_col + 1)
                     for col, value in col_updates.items():
-                        row_data[col] = 1  # Use integer 1 instead of string "1"
+                        row_data[col] = channel_value  # Use configured channel value
                     
                     # Update the row
                     range_name = f"{self._column_index_to_letter(min_col)}{row}:{self._column_index_to_letter(max_col)}{row}"
@@ -803,7 +815,7 @@ class ImageAnalysis(commands.Cog):
             index = index // 26 - 1
         return result
 
-    async def _process_image(self, message: discord.Message, image_data: bytes, guild_id: int):
+    async def _process_image(self, message: discord.Message, image_data: bytes, guild_id: int, channel_value: int = 1):
         """Process a single image and extract usernames."""
         # Get the original image URL from the message
         image_url = None
@@ -836,7 +848,7 @@ class ImageAnalysis(commands.Cog):
         embed.set_footer(text=f"Hochgeladen am {message.created_at.strftime('%d.%m.%Y um %H:%M')}")
         
         # Create confirmation buttons
-        view = ImageAnalysisConfirmationView(self, message, image_data, guild_id)
+        view = ImageAnalysisConfirmationView(self, message, image_data, guild_id, channel_value)
         
         try:
             # Send confirmation message
@@ -850,7 +862,7 @@ class ImageAnalysis(commands.Cog):
             except discord.Forbidden:
                 _log.error(f"Cannot send message to channel {message.channel.id} in guild {guild_id}")
 
-    async def _analyze_image_and_extract_usernames(self, message: discord.Message, image_data: bytes, guild_id: int):
+    async def _analyze_image_and_extract_usernames(self, message: discord.Message, image_data: bytes, guild_id: int, channel_value: int = 1):
         """Actually perform the image analysis and extract usernames."""
         cfg = storage.load_guild_config(guild_id)
         api_key = self._get_gemini_api_key(cfg)
@@ -901,7 +913,7 @@ class ImageAnalysis(commands.Cog):
         embed.set_footer(text=f"Analysiert am {message.created_at.strftime('%d.%m.%Y um %H:%M')}")
         
         # Create buttons
-        view = UsernameEditView(self, usernames, message.id, message.channel.name, guild_id)
+        view = UsernameEditView(self, usernames, message.id, message.channel.name, guild_id, channel_value)
         
         # Configure buttons based on permissions
         await view._configure_buttons_for_user(message.guild)
@@ -958,14 +970,15 @@ class ImageAnalysis(commands.Cog):
         channel_id = self._get_channel_id(cfg)
         second_channel_id = self._get_second_channel_id(cfg)
         
-        # Check if thread belongs to either configured channel
+        # Check if thread belongs to either configured channel and determine value
         if not channel_id and not second_channel_id:
             return
         
+        channel_value = 1  # Default value
         if channel_id and message.channel.parent_id == channel_id:
-            pass  # First channel matches
+            channel_value = self._get_channel_value(cfg)  # First channel value
         elif second_channel_id and message.channel.parent_id == second_channel_id:
-            pass  # Second channel matches
+            channel_value = self._get_second_channel_value(cfg)  # Second channel value
         else:
             return  # Thread doesn't belong to any configured channel
         
@@ -975,7 +988,7 @@ class ImageAnalysis(commands.Cog):
                 try:
                     # Download image
                     image_data = await attachment.read()
-                    await self._process_image(message, image_data, guild.id)
+                    await self._process_image(message, image_data, guild.id, channel_value)
                     break  # Only process first image per message
                 except Exception as e:
                     _log.error(f"Failed to process image in message {message.id}: {e}")
@@ -988,7 +1001,7 @@ class ImageAnalysis(commands.Cog):
                     async with self.bot.session.get(embed.image.url) as resp:
                         if resp.status == 200:
                             image_data = await resp.read()
-                            await self._process_image(message, image_data, guild.id)
+                            await self._process_image(message, image_data, guild.id, channel_value)
                             break
                 except Exception as e:
                     _log.error(f"Failed to process embed image in message {message.id}: {e}")
@@ -1025,6 +1038,18 @@ class ImageAnalysis(commands.Cog):
             await interaction.followup.send("❌ Dieser Befehl kann nur in Threads verwendet werden.", ephemeral=True)
             return
         
+        # Determine channel value based on which configured channel this is
+        cfg = storage.load_guild_config(guild.id)
+        channel_id = self._get_channel_id(cfg)
+        second_channel_id = self._get_second_channel_id(cfg)
+        
+        channel_value = 1  # Default value
+        if isinstance(interaction.channel, discord.Thread):
+            if channel_id and interaction.channel.parent_id == channel_id:
+                channel_value = self._get_channel_value(cfg)
+            elif second_channel_id and interaction.channel.parent_id == second_channel_id:
+                channel_value = self._get_second_channel_value(cfg)
+        
         # Look for the most recent image in the thread
         try:
             messages = [msg async for msg in interaction.channel.history(limit=20)]
@@ -1034,7 +1059,7 @@ class ImageAnalysis(commands.Cog):
                     if attachment.content_type and attachment.content_type.startswith('image/'):
                         try:
                             image_data = await attachment.read()
-                            await self._process_image(message, image_data, guild.id)
+                            await self._process_image(message, image_data, guild.id, channel_value)
                             await interaction.followup.send("✅ Bestätigungsnachricht für Bildanalyse gesendet!", ephemeral=True)
                             return
                         except Exception as e:
@@ -1357,12 +1382,13 @@ class ImageAnalysis(commands.Cog):
 class ImageAnalysisConfirmationView(discord.ui.View):
     """Confirmation view for image analysis."""
     
-    def __init__(self, cog: ImageAnalysis, message: discord.Message, image_data: bytes, guild_id: int):
+    def __init__(self, cog: ImageAnalysis, message: discord.Message, image_data: bytes, guild_id: int, channel_value: int = 1):
         super().__init__(timeout=259200) 
         self.cog = cog
         self.message = message
         self.image_data = image_data
         self.guild_id = guild_id
+        self.channel_value = channel_value
 
     @discord.ui.button(label="Ja, analysieren", style=discord.ButtonStyle.green, emoji="✅")
     async def confirm_analysis(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -1385,7 +1411,7 @@ class ImageAnalysisConfirmationView(discord.ui.View):
         await interaction.response.defer(thinking=False)
         
         # Perform the actual analysis
-        await self.cog._analyze_image_and_extract_usernames(self.message, self.image_data, self.guild_id)
+        await self.cog._analyze_image_and_extract_usernames(self.message, self.image_data, self.guild_id, self.channel_value)
         
         # Delete the confirmation message after analysis
         try:
@@ -1403,13 +1429,14 @@ class ImageAnalysisConfirmationView(discord.ui.View):
 class UsernameEditView(discord.ui.View):
     """Interactive view for editing extracted usernames."""
     
-    def __init__(self, cog: ImageAnalysis, usernames: List[str], original_message_id: int, thread_name: str, guild_id: int):
+    def __init__(self, cog: ImageAnalysis, usernames: List[str], original_message_id: int, thread_name: str, guild_id: int, channel_value: int = 1):
         super().__init__(timeout=259200) 
         self.cog = cog
         self.usernames = usernames.copy()
         self.original_message_id = original_message_id
         self.thread_name = thread_name
         self.guild_id = guild_id
+        self.channel_value = channel_value
 
     @discord.ui.button(label="Bearbeiten", style=discord.ButtonStyle.blurple, emoji="✏️")
     async def edit_usernames(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -1534,7 +1561,7 @@ class UsernameEditView(discord.ui.View):
             await interaction.message.edit(embed=embed, view=self)
         
         # Process payout tracking in background with status updates
-        payout_result = await self.cog._process_payout_tracking(self.usernames, self.thread_name, interaction.guild.id, update_status)
+        payout_result = await self.cog._process_payout_tracking(self.usernames, self.thread_name, interaction.guild.id, update_status, self.channel_value)
         
         # Update the original embed with final results
         embed = interaction.message.embeds[0]

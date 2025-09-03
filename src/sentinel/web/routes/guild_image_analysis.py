@@ -22,6 +22,8 @@ async def get_image_analysis_config(guild_id: int, request: Request):
         "enabled": cfg.get("image_analysis_enabled", False),
         "channel_id": cfg.get("image_analysis_channel_id"),
         "second_channel_id": cfg.get("image_analysis_second_channel_id"),
+        "channel_value": cfg.get("image_analysis_channel_value", 1),
+        "second_channel_value": cfg.get("image_analysis_second_channel_value", 2),
         "gemini_api_key": cfg.get("gemini_api_key", ""),
         "payout_sheet_id": cfg.get("payout_sheet_id", ""),
         "payout_worksheet_name": cfg.get("payout_worksheet_name", ""),
@@ -50,6 +52,12 @@ async def set_image_analysis_config(guild_id: int, request: Request, payload: di
     
     if "second_channel_id" in payload:
         cfg["image_analysis_second_channel_id"] = payload["second_channel_id"]
+    
+    if "channel_value" in payload:
+        cfg["image_analysis_channel_value"] = int(payload["channel_value"]) if payload["channel_value"] else 1
+    
+    if "second_channel_value" in payload:
+        cfg["image_analysis_second_channel_value"] = int(payload["second_channel_value"]) if payload["second_channel_value"] else 2
     
     if "gemini_api_key" in payload:
         cfg["gemini_api_key"] = payload["gemini_api_key"]
@@ -230,8 +238,8 @@ async def test_payout_tracking(guild_id: int, request: Request, payload: dict):
         payout_language = cfg.get("payout_language", "de")
         resolved_worksheet = image_cog._resolve_worksheet_name(worksheet_template, payout_language)
         
-        # Test payout tracking
-        result = await image_cog._process_payout_tracking(test_usernames, thread_name, guild_id)
+        # Test payout tracking with default channel value
+        result = await image_cog._process_payout_tracking(test_usernames, thread_name, guild_id, channel_value=1)
         
         # Add resolved worksheet name to result for display
         if result.get("success"):
