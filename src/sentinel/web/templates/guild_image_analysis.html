@@ -24,27 +24,41 @@
                 <!-- Channel Selection -->
                 <div class="field">
                     <label class="label">Überwachter Kanal</label>
-                    <div class="control">
-                        <div class="select is-fullwidth">
-                            <select id="channel">
-                                <option value="">Kanal auswählen...</option>
-                            </select>
+                    <div class="field has-addons">
+                        <div class="control is-expanded">
+                            <div class="select is-fullwidth">
+                                <select id="channel">
+                                    <option value="">Kanal auswählen...</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="control">
+                            <input class="input" type="number" id="channelValue" placeholder="Wert" min="1" max="9999"
+                                style="width: 100px;">
                         </div>
                     </div>
-                    <p class="help">Der Bot überwacht diesen Kanal auf hochgeladene Bilder</p>
+                    <p class="help">Der Bot überwacht diesen Kanal auf hochgeladene Bilder. Der Wert wird ins Excel
+                        eingetragen.</p>
                 </div>
 
                 <!-- Second Channel Selection (hidden by default) -->
                 <div class="field" id="secondChannelField" style="display: none;">
                     <label class="label">Zweiter überwachter Kanal (optional)</label>
-                    <div class="control">
-                        <div class="select is-fullwidth">
-                            <select id="secondChannel">
-                                <option value="">Kanal auswählen...</option>
-                            </select>
+                    <div class="field has-addons">
+                        <div class="control is-expanded">
+                            <div class="select is-fullwidth">
+                                <select id="secondChannel">
+                                    <option value="">Kanal auswählen...</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="control">
+                            <input class="input" type="number" id="secondChannelValue" placeholder="Wert" min="1"
+                                max="9999" style="width: 100px;">
                         </div>
                     </div>
-                    <p class="help">Optional: Ein zweiter Kanal, der ebenfalls überwacht wird</p>
+                    <p class="help">Optional: Ein zweiter Kanal, der ebenfalls überwacht wird. Der Wert wird ins Excel
+                        eingetragen.</p>
                 </div>
 
                 <!-- Gemini API Key -->
@@ -304,7 +318,9 @@
                         erstellt</li>
                     <li>• Der Thread-Name wird als Event-Name in der konfigurierten Event-Zeile eingetragen</li>
                     <li>• Events werden ab der konfigurierten Start-Spalte gesucht (z.B. ab Spalte G)</li>
-                    <li>• Gefundene Benutzer werden mit einer "1" in der entsprechenden Spalte markiert</li>
+                    <li>• <strong>Channel-spezifische Werte:</strong> Gefundene Benutzer werden mit dem konfigurierten
+                        Wert des jeweiligen Channels markiert (standardmäßig 1 für den ersten, 2 für den zweiten
+                        Channel)</li>
                     <li>• Nicht gefundene Benutzer werden in der Bestätigungsnachricht aufgelistet</li>
                     <li>• Das System versucht sowohl exakte als auch partielle Übereinstimmungen zu finden</li>
                     <li>• <strong>Dynamische Worksheets:</strong> Worksheets werden automatisch erstellt, falls sie
@@ -377,6 +393,8 @@
             const config = await response.json();
 
             document.getElementById('enabled').checked = config.enabled;
+            document.getElementById('channelValue').value = config.channel_value || 1;
+            document.getElementById('secondChannelValue').value = config.second_channel_value || 2;
             document.getElementById('apiKey').value = config.gemini_api_key || '';
             document.getElementById('payoutSheetId').value = config.payout_sheet_id || '';
             document.getElementById('payoutWorksheet').value = config.payout_worksheet_name || '';
@@ -547,6 +565,8 @@
         const enabled = document.getElementById('enabled').checked;
         const channelId = document.getElementById('channel').value;
         const secondChannelId = document.getElementById('secondChannel').value;
+        const channelValue = parseInt(document.getElementById('channelValue').value) || 1;
+        const secondChannelValue = parseInt(document.getElementById('secondChannelValue').value) || 2;
         const apiKey = document.getElementById('apiKey').value;
         const payoutSheetId = document.getElementById('payoutSheetId').value;
         const payoutWorksheet = document.getElementById('payoutWorksheet').value;
@@ -580,6 +600,8 @@
                     enabled: enabled,
                     channel_id: channelId || null,
                     second_channel_id: secondChannelId || null,
+                    channel_value: channelValue,
+                    second_channel_value: secondChannelValue,
                     gemini_api_key: apiKey,
                     payout_sheet_id: payoutSheetId,
                     payout_worksheet_name: payoutWorksheet,
