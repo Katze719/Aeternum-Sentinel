@@ -247,6 +247,31 @@
 
 <div class="card mb-6">
     <header class="card-header">
+        <p class="card-header-title">TeamSpeak Server</p>
+    </header>
+    <div class="card-content">
+        <form id="tsMessageForm" style="max-width:600px">
+            <div class="field">
+                <label class="label">
+                    Nachricht mit TeamSpeak Informationen, die per <code>/ts</code> (!ts) gesendet wird
+                </label>
+                <div class="control">
+                    <textarea class="textarea" id="ts_message" rows="4"
+                        placeholder="TeamSpeak Server IP: ts.example.com&#10;Password: geheim123&#10;&#10;Verbinde dich mit unserem TeamSpeak Server!"
+                        required>{{ ts_message }}</textarea>
+                </div>
+            </div>
+            <div class="field">
+                <div class="control">
+                    <button class="button is-primary" type="submit">Speichern</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card mb-6">
+    <header class="card-header">
         <p class="card-header-title">🧩 Reaction Roles</p>
     </header>
     <div class="card-content">
@@ -711,6 +736,23 @@
             body: JSON.stringify({ link: linkVal })
         });
         window.showToast('VOD-Link gespeichert', window.toastTypes.INFO);
+        submitBtn.classList.remove('is-loading');
+        submitBtn.disabled = false;
+    });
+
+    // ---- TS Message Config ----
+    document.getElementById('tsMessageForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        submitBtn.classList.add('is-loading');
+        submitBtn.disabled = true;
+        const messageVal = document.getElementById('ts_message').value.trim();
+        await fetch(`/guilds/{{ guild.id }}/ts-message`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: messageVal })
+        });
+        window.showToast('TeamSpeak-Nachricht gespeichert', window.toastTypes.INFO);
         submitBtn.classList.remove('is-loading');
         submitBtn.disabled = false;
     });
