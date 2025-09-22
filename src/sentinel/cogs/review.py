@@ -10,6 +10,9 @@ DEFAULT_REVIEW_MESSAGE = (
 # Default link if none configured
 DEFAULT_VOD_LINK = "https://example.com"
 
+# Default TS message if none configured
+DEFAULT_TS_MESSAGE = "No TeamSpeak server configured for this server. Please contact an administrator."
+
 class Review(commands.Cog):
     """Commands related to user review requests."""
 
@@ -65,6 +68,34 @@ class Review(commands.Cog):
             description=f"Use the following form to submit your VOD link:\n{link}",
             url=link,
             color=discord.Color.orange(),
+        )
+        await ctx.send(embed=embed)
+
+    # --------------------------------------------------
+    # TeamSpeak command
+    # --------------------------------------------------
+
+    @commands.hybrid_command(
+        name="ts",
+        description="Sende die TeamSpeak Server Informationen.",
+    )
+    async def ts(self, ctx: commands.Context):  # noqa: D401
+        """Send a public message containing the TeamSpeak server information."""
+
+        guild = ctx.guild
+        if guild is not None:
+            cfg = storage.load_guild_config(guild.id)
+            ts_message = cfg.get("ts_message", DEFAULT_TS_MESSAGE)
+        else:
+            ts_message = DEFAULT_TS_MESSAGE
+
+        if not ts_message:
+            ts_message = DEFAULT_TS_MESSAGE
+
+        embed = discord.Embed(
+            title="🎤 TeamSpeak Server",
+            description=ts_message,
+            color=discord.Color.green(),
         )
         await ctx.send(embed=embed)
 

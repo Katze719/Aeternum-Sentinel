@@ -49,6 +49,8 @@ async def guild_settings(guild_id: int, request: Request):
 
     vod_link = cfg.get("vod_link", "")
 
+    ts_message = cfg.get("ts_message", "")
+
     voice_channel_names = {str(ch['id']): ch['name'] for ch in voice_channels}
     category_names = {str(cat['id']): cat['name'] for cat in categories}
 
@@ -72,5 +74,6 @@ async def guild_settings(guild_id: int, request: Request):
             "sheet_cfg": sheet_cfg,
             "review_message": review_message,
             "vod_link": vod_link,
+            "ts_message": ts_message,
         },
     ) 
