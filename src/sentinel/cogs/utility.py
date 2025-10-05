@@ -12,12 +12,35 @@ class Utility(commands.Cog):
     @app_commands.command(name="ping", description="Check bot latency.")
     async def ping(self, interaction: discord.Interaction):  # noqa: D401
         latency = self.bot.latency * 1000  # Convert to ms
-        embed = discord.Embed(
-            title="🏓 Pong!",
-            description=f"Latenz: **{latency:.2f} ms**",
-            color=discord.Color.green(),
-        )
-        await interaction.response.send_message(embed=embed)
+        
+        # Components v2 with enhanced styling
+        class PingView(discord.ui.LayoutView):
+            def __init__(self, latency: float):
+                super().__init__()
+                # Enhanced formatting with latency indicator
+                if latency < 100:
+                    status = "🟢 Ausgezeichnet"
+                    color = discord.Colour.green()
+                elif latency < 200:
+                    status = "🟡 Gut"
+                    color = discord.Colour.gold()
+                else:
+                    status = "🔴 Hoch"
+                    color = discord.Colour.red()
+                
+                content = (
+                    f"# 🏓 Pong!\n\n"
+                    f"**Latenz:** {latency:.2f} ms\n"
+                    f"**Status:** {status}\n\n"
+                    f"*Der Bot ist online und antwortet.*"
+                )
+                container = discord.ui.Container(
+                    discord.ui.TextDisplay(content),
+                    accent_colour=color,
+                )
+                self.add_item(container)
+        
+        await interaction.response.send_message(view=PingView(latency))
 
     @app_commands.command(
         name="web",
@@ -45,13 +68,29 @@ class Utility(commands.Cog):
             # DM or unknown guild – fall back to dashboard landing.
             url = base_url
 
-        embed = discord.Embed(
-            title="🌐 Sentinel Web-UI",
-            description=url,
-            color=discord.Color.blue(),
-            url=url,
-        )
-        await interaction.response.send_message(embed=embed)
+        # Components v2 with enhanced styling
+        class WebView(discord.ui.LayoutView):
+            def __init__(self, url: str, is_guild: bool):
+                super().__init__()
+                # Enhanced formatting with guild-specific message
+                if is_guild:
+                    desc = "Hier findest du die Einstellungen für diesen Server:"
+                else:
+                    desc = "Hier findest du das Sentinel Dashboard:"
+                
+                content = (
+                    f"# 🌐 Sentinel Web-UI\n\n"
+                    f"{desc}\n\n"
+                    f"🔗 **[Web-Interface öffnen]({url})**\n\n"
+                    f"*Konfiguriere deinen Bot über das benutzerfreundliche Web-Interface.*"
+                )
+                container = discord.ui.Container(
+                    discord.ui.TextDisplay(content),
+                    accent_colour=discord.Colour.blue(),
+                )
+                self.add_item(container)
+        
+        await interaction.response.send_message(view=WebView(url, interaction.guild is not None))
 
     @app_commands.command(name="changelog", description="Zeige den neuesten Changelog-Eintrag als Embed.")
     async def changelog(self, interaction: discord.Interaction):
@@ -94,13 +133,23 @@ class Utility(commands.Cog):
             # Kürze den Inhalt und füge "..." hinzu
             latest_content = latest_content[:4093] + "..."
         
-        embed = discord.Embed(
-            title=f"🦄 {title}",
-            description=latest_content,
-            color=discord.Color.purple(),
-        )
+        # Components v2 with enhanced styling
+        class ChangelogView(discord.ui.LayoutView):
+            def __init__(self, title: str, content: str):
+                super().__init__()
+                # Enhanced formatting with better structure
+                formatted_content = (
+                    f"# 🦄 {title}\n\n"
+                    f"{content}\n\n"
+                    f"*Danke, dass du Sentinel nutzt!*"
+                )
+                container = discord.ui.Container(
+                    discord.ui.TextDisplay(formatted_content),
+                    accent_colour=discord.Colour.purple(),
+                )
+                self.add_item(container)
         
-        await interaction.response.send_message(embed=embed)
+        await interaction.response.send_message(view=ChangelogView(title, latest_content))
 
 
 async def setup(bot: commands.Bot):

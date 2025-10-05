@@ -209,8 +209,22 @@ class VoiceChannelUserCreation(commands.Cog):
     async def cleanup_voice(self, interaction: discord.Interaction):
         guild = interaction.guild
         if guild is None:
-            embed_err = discord.Embed(description="❌ Guild context required.", color=discord.Color.red())
-            await interaction.response.send_message(embed=embed_err, ephemeral=True)
+            # Components v2 error message with enhanced styling
+            class ErrorView(discord.ui.LayoutView):
+                def __init__(self):
+                    super().__init__()
+                    content = (
+                        "# ❌ Fehler\n\n"
+                        "Dieser Befehl kann nur in einem Server verwendet werden.\n\n"
+                        "*Bitte führe den Befehl in einem Discord-Server aus.*"
+                    )
+                    container = discord.ui.Container(
+                        discord.ui.TextDisplay(content),
+                        accent_colour=discord.Colour.red(),
+                    )
+                    self.add_item(container)
+            
+            await interaction.response.send_message(view=ErrorView(), ephemeral=True)
             return
 
         removed = 0
@@ -229,8 +243,35 @@ class VoiceChannelUserCreation(commands.Cog):
                 except discord.Forbidden:
                     pass
 
-        embed_ok = discord.Embed(description=f"✔️ {removed} channel(s) removed.", color=discord.Color.green())
-        await interaction.response.send_message(embed=embed_ok)
+        # Components v2 success message with enhanced styling
+        class SuccessView(discord.ui.LayoutView):
+            def __init__(self, count: int):
+                super().__init__()
+                if count == 0:
+                    content = (
+                        "# ✅ Cleanup abgeschlossen\n\n"
+                        "Keine leeren Voice-Channels gefunden.\n\n"
+                        "*Alle Voice-Channels werden aktiv genutzt.*"
+                    )
+                elif count == 1:
+                    content = (
+                        "# ✅ Cleanup abgeschlossen\n\n"
+                        "**1** leerer Voice-Channel wurde entfernt.\n\n"
+                        "*Der Server ist jetzt aufgeräumt.*"
+                    )
+                else:
+                    content = (
+                        f"# ✅ Cleanup abgeschlossen\n\n"
+                        f"**{count}** leere Voice-Channels wurden entfernt.\n\n"
+                        f"*Der Server ist jetzt aufgeräumt.*"
+                    )
+                container = discord.ui.Container(
+                    discord.ui.TextDisplay(content),
+                    accent_colour=discord.Colour.green(),
+                )
+                self.add_item(container)
+        
+        await interaction.response.send_message(view=SuccessView(removed))
 
     # ------------------------------------------------------------------
     # Internal numbering helper

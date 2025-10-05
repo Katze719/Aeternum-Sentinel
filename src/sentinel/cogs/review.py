@@ -34,13 +34,19 @@ class Review(commands.Cog):
         else:
             description = DEFAULT_REVIEW_MESSAGE
 
-        embed = discord.Embed(
-            title="📝 Review",
-            description=description,
-            color=discord.Color.blurple(),
-        )
-        # Send publicly visible message (not ephemeral)
-        await ctx.send(embed=embed)
+        # Components v2 with enhanced styling
+        class ReviewView(discord.ui.LayoutView):
+            def __init__(self, message: str):
+                super().__init__()
+                # Enhanced formatting with better structure
+                content = f"# 📝 Review Anfrage\n\n{message}\n\n*Bitte lies dir alles sorgfältig durch.*"
+                container = discord.ui.Container(
+                    discord.ui.TextDisplay(content),
+                    accent_colour=discord.Colour.blurple(),
+                )
+                self.add_item(container)
+        
+        await ctx.send(view=ReviewView(description))
 
     # --------------------------------------------------
     # VOD command
@@ -63,13 +69,24 @@ class Review(commands.Cog):
         if not link:
             link = DEFAULT_VOD_LINK
 
-        embed = discord.Embed(
-            title="📹 VOD Formular",
-            description=f"Use the following form to submit your VOD link:\n{link}",
-            url=link,
-            color=discord.Color.orange(),
-        )
-        await ctx.send(embed=embed)
+        # Components v2 with enhanced styling
+        class VodView(discord.ui.LayoutView):
+            def __init__(self, link: str):
+                super().__init__()
+                # Enhanced formatting with clickable link
+                content = (
+                    f"# 📹 VOD Formular\n\n"
+                    f"Nutze das folgende Formular, um deinen VOD-Link einzureichen:\n\n"
+                    f"🔗 **[Zum Formular]({link})**\n\n"
+                    f"*Stelle sicher, dass dein VOD alle relevanten Informationen enthält.*"
+                )
+                container = discord.ui.Container(
+                    discord.ui.TextDisplay(content),
+                    accent_colour=discord.Colour.orange(),
+                )
+                self.add_item(container)
+        
+        await ctx.send(view=VodView(link))
 
     # --------------------------------------------------
     # TeamSpeak command
@@ -92,12 +109,23 @@ class Review(commands.Cog):
         if not ts_message:
             ts_message = DEFAULT_TS_MESSAGE
 
-        embed = discord.Embed(
-            title="🎤 TeamSpeak Server",
-            description=ts_message,
-            color=discord.Color.green(),
-        )
-        await ctx.send(embed=embed)
+        # Components v2 with enhanced styling
+        class TsView(discord.ui.LayoutView):
+            def __init__(self, message: str):
+                super().__init__()
+                # Enhanced formatting with better structure
+                content = (
+                    f"# 🎤 TeamSpeak Server\n\n"
+                    f"{message}\n\n"
+                    f"*Verbinde dich mit dem Server, um mit deinem Team zu kommunizieren.*"
+                )
+                container = discord.ui.Container(
+                    discord.ui.TextDisplay(content),
+                    accent_colour=discord.Colour.green(),
+                )
+                self.add_item(container)
+        
+        await ctx.send(view=TsView(ts_message))
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Review(bot)) 

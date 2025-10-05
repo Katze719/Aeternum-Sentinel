@@ -142,15 +142,43 @@ class RoleIcons(commands.Cog):
         await interaction.response.defer(thinking=True)
         guild = interaction.guild
         if guild is None:
-            embed_err = discord.Embed(description="❌ Guild context required.", color=discord.Color.red())
-            await interaction.followup.send(embed=embed_err, ephemeral=True)
+            # Components v2 error message with enhanced styling
+            class ErrorView(discord.ui.LayoutView):
+                def __init__(self):
+                    super().__init__()
+                    content = (
+                        "# ❌ Fehler\n\n"
+                        "Dieser Befehl kann nur in einem Server verwendet werden.\n\n"
+                        "*Bitte führe den Befehl in einem Discord-Server aus.*"
+                    )
+                    container = discord.ui.Container(
+                        discord.ui.TextDisplay(content),
+                        accent_colour=discord.Colour.red(),
+                    )
+                    self.add_item(container)
+            
+            await interaction.followup.send(view=ErrorView(), ephemeral=True)
             return
 
         for member in guild.members:
             await self._apply_nickname(member)
 
-        embed_ok = discord.Embed(description="✔️ Alle Nicknames aktualisiert.", color=discord.Color.green())
-        await interaction.followup.send(embed=embed_ok)
+        # Components v2 success message with enhanced styling
+        class SuccessView(discord.ui.LayoutView):
+            def __init__(self, member_count: int):
+                super().__init__()
+                content = (
+                    "# ✅ Nicknames aktualisiert\n\n"
+                    f"Alle **{member_count}** Mitglieder-Nicknames wurden erfolgreich mit ihren Rollen-Icons aktualisiert.\n\n"
+                    "*Die Änderungen sind sofort sichtbar.*"
+                )
+                container = discord.ui.Container(
+                    discord.ui.TextDisplay(content),
+                    accent_colour=discord.Colour.green(),
+                )
+                self.add_item(container)
+        
+        await interaction.followup.send(view=SuccessView(len(guild.members)))
 
     # Listener to auto-update when role added/removed
 
