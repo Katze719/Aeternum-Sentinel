@@ -1073,14 +1073,14 @@ class ImageAnalysis(commands.Cog):
             _log.error(f"Error in analyze_image command: {e}")
             await interaction.followup.send(f"❌ Fehler beim Analysieren: {str(e)}", ephemeral=True)
 
-    @app_commands.command(name="create_team_stats", description="Team-Statistiken, Team-Zusammensetzung und Gegner-Statistiken verarbeiten und Tabelle erstellen.")
+    @app_commands.command(name="create_team_stats", description="Erstelle eine strukturierte Tabelle aus Team-Statistiken, Team-Zusammensetzung und Gegner-Daten.")
     @app_commands.describe(
-        stats_image_url="URL zum Bild mit Team-Statistiken (Leaderboard)",
-        composition_image_url="URL zum Bild mit Team-Zusammensetzung (Gruppen)",
-        enemy_stats_image_url="URL zum Bild mit Gegner-Statistiken"
+        team_leaderboard_url="🔗 URL zum Bild mit EUER TEAM Leaderboard/Statistiken (Kills, Deaths, Assists, etc.)",
+        team_groups_url="🔗 URL zum Bild mit EUER TEAM Gruppen-Zusammensetzung (wer ist in welcher Gruppe)",
+        enemy_leaderboard_url="🔗 URL zum Bild mit GEGNER TEAM Leaderboard/Statistiken"
     )
     @app_commands.default_permissions(manage_guild=True)
-    async def create_team_stats(self, interaction: discord.Interaction, stats_image_url: str, composition_image_url: str, enemy_stats_image_url: str):
+    async def create_team_stats(self, interaction: discord.Interaction, team_leaderboard_url: str, team_groups_url: str, enemy_leaderboard_url: str):
         """Process team statistics and team composition images to create a structured table."""
         await interaction.response.defer(thinking=True)
         
@@ -1147,7 +1147,7 @@ class ImageAnalysis(commands.Cog):
             
             try:
                 # Download stats image
-                async with self.bot.session.get(stats_image_url) as resp:
+                async with self.bot.session.get(team_leaderboard_url) as resp:
                     if resp.status != 200:
                         embed = discord.Embed(
                             title="❌ Fehler beim Herunterladen des Stats-Bildes",
@@ -1159,7 +1159,7 @@ class ImageAnalysis(commands.Cog):
                     stats_image_data = await resp.read()
                 
                 # Download composition image
-                async with self.bot.session.get(composition_image_url) as resp:
+                async with self.bot.session.get(team_groups_url) as resp:
                     if resp.status != 200:
                         embed = discord.Embed(
                             title="❌ Fehler beim Herunterladen des Composition-Bildes",
@@ -1171,7 +1171,7 @@ class ImageAnalysis(commands.Cog):
                     composition_image_data = await resp.read()
                 
                 # Download enemy stats image
-                async with self.bot.session.get(enemy_stats_image_url) as resp:
+                async with self.bot.session.get(enemy_leaderboard_url) as resp:
                     if resp.status != 200:
                         embed = discord.Embed(
                             title="❌ Fehler beim Herunterladen des Gegner-Stats-Bildes",
